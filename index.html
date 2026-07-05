@@ -368,7 +368,7 @@ function renderStats(data) {
   function fmtUsd(n) {
     const usd = Number(n) || 0;
     const eur = usd * usdToEur;
-    return '$' + usd.toFixed(2) + ' / ' + eur.toFixed(2) + ' Euro';
+    return '$' + usd.toFixed(2) + ' / ' + eur.toFixed(2) + ' €';
   }
 
   app.innerHTML = `
@@ -388,7 +388,7 @@ function renderStats(data) {
         <div class="stat-box"><div class="stat-num" style="font-size:19px;">${fmtUsd(costs.image_cost_usd_estimate)}</div><div class="stat-label">Bilder (geschätzt)</div></div>
       </div>
       <div class="meta" style="margin-top:12px;">${costs.images_generated_estimate ?? 0} Bilder generiert &middot; ${(costs.prompt_tokens_total ?? 0).toLocaleString('de-DE')} Prompt-Tokens &middot; ${(costs.completion_tokens_total ?? 0).toLocaleString('de-DE')} Completion-Tokens</div>
-      <div class="meta" style="margin-top:4px;">Wechselkurs: 1 USD = ${usdToEur.toFixed(4)} Euro ${usdToEurUpdated ? '(Live-Kurs vom ' + usdToEurUpdated + ')' : '(Fallback-Wert, Live-Abruf nicht verfügbar)'}</div>
+      <div class="meta" style="margin-top:4px;">Wechselkurs: 1 USD = ${usdToEur.toFixed(4)} € ${usdToEurUpdated ? '(Live-Kurs vom ' + usdToEurUpdated + ')' : '(Fallback-Wert, Live-Abruf nicht verfügbar)'}</div>
       <div class="meta" style="margin-top:8px; font-style: italic;">${deumlaut(costs.note || '')}</div>
     </div>
 

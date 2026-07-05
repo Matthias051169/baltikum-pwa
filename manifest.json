@@ -1,7 +1,7 @@
 {
   "name": "Baltikum Freigabe",
   "short_name": "Baltikum",
-  "description": "Freigabe-Steuerung und Statistik fuer die Baltikum-Facebook-Automation",
+  "description": "Freigabe-Steuerung und Statistik für die Baltikum-Facebook-Automation",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

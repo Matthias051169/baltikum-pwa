@@ -225,8 +225,9 @@
 // ---- Konfiguration ----
 // Basis-URL deiner n8n-Instanz. Bei Bedarf anpassen.
 const N8N_BASE = 'https://n8n.taila03b27.ts.net';
-const PENDING_URL = N8N_BASE + '/webhook/baltikum-pwa-pending';
-const STATS_URL = N8N_BASE + '/webhook/baltikum-pwa-stats';
+const ACCESS_KEY = 'IhfCkzE29URVBvh0ECeWpGKbc2lllmWy';
+const PENDING_URL = N8N_BASE + '/webhook/baltikum-pwa-pending?key=' + encodeURIComponent(ACCESS_KEY);
+const STATS_URL = N8N_BASE + '/webhook/baltikum-pwa-stats?key=' + encodeURIComponent(ACCESS_KEY);
 const APPROVAL_URL = N8N_BASE + '/webhook/baltikum-facebook-approval';
 
 const STATUS_LABELS = {
@@ -281,6 +282,10 @@ async function loadPending() {
   try {
     const res = await fetch(PENDING_URL, { cache: 'no-store' });
     const data = await res.json();
+    if (data.error) {
+      app.innerHTML = '<div class="empty">Zugriff verweigert (' + escapeHtml(data.error) + ').</div>';
+      return;
+    }
     renderPending(data.pending || []);
   } catch (e) {
     app.innerHTML = '<div class="empty">Fehler beim Laden. Verbindung prüfen.<br><small>' + e.message + '</small></div>';
@@ -347,6 +352,10 @@ async function loadStats() {
   try {
     const res = await fetch(STATS_URL, { cache: 'no-store' });
     const data = await res.json();
+    if (data.error) {
+      app.innerHTML = '<div class="empty">Zugriff verweigert (' + escapeHtml(data.error) + ').</div>';
+      return;
+    }
     renderStats(data);
   } catch (e) {
     app.innerHTML = '<div class="empty">Fehler beim Laden. Verbindung prüfen.<br><small>' + e.message + '</small></div>';
@@ -368,7 +377,7 @@ function renderStats(data) {
   function fmtUsd(n) {
     const usd = Number(n) || 0;
     const eur = usd * usdToEur;
-    return '$' + usd.toFixed(2) + ' / ' + eur.toFixed(2) + ' €';
+    return '$' + usd.toFixed(2) + ' / ' + eur.toFixed(2) + '€';
   }
 
   app.innerHTML = `
@@ -388,7 +397,7 @@ function renderStats(data) {
         <div class="stat-box"><div class="stat-num" style="font-size:19px;">${fmtUsd(costs.image_cost_usd_estimate)}</div><div class="stat-label">Bilder (geschätzt)</div></div>
       </div>
       <div class="meta" style="margin-top:12px;">${costs.images_generated_estimate ?? 0} Bilder generiert &middot; ${(costs.prompt_tokens_total ?? 0).toLocaleString('de-DE')} Prompt-Tokens &middot; ${(costs.completion_tokens_total ?? 0).toLocaleString('de-DE')} Completion-Tokens</div>
-      <div class="meta" style="margin-top:4px;">Wechselkurs: 1 USD = ${usdToEur.toFixed(4)} € ${usdToEurUpdated ? '(Live-Kurs vom ' + usdToEurUpdated + ')' : '(Fallback-Wert, Live-Abruf nicht verfügbar)'}</div>
+      <div class="meta" style="margin-top:4px;">Wechselkurs: 1 USD = ${usdToEur.toFixed(4)}€ ${usdToEurUpdated ? '(Live-Kurs vom ' + usdToEurUpdated + ')' : '(Fallback-Wert, Live-Abruf nicht verfügbar)'}</div>
       <div class="meta" style="margin-top:8px; font-style: italic;">${deumlaut(costs.note || '')}</div>
     </div>
 

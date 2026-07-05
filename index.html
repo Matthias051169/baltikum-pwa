@@ -335,9 +335,11 @@ function renderStats(data) {
   const app = document.getElementById('app');
   const byStatus = data.by_status || {};
   const byPillar = data.by_content_pillar || {};
+  const byPillar7d = data.by_content_pillar_7d || {};
 
   const maxStatus = Math.max(1, ...Object.values(byStatus));
   const maxPillar = Math.max(1, ...Object.values(byPillar));
+  const maxPillar7d = Math.max(1, ...Object.values(byPillar7d), 1);
 
   app.innerHTML = `
     <div class="stat-grid">
@@ -359,7 +361,7 @@ function renderStats(data) {
     </div>
 
     <div class="breakdown">
-      <h3>Nach Content-Säule</h3>
+      <h3>Nach Content-Säule (gesamt)</h3>
       ${Object.entries(byPillar).map(([k, v]) => `
         <div class="bar-row">
           <div class="bar-label">${k}</div>
@@ -367,6 +369,19 @@ function renderStats(data) {
           <div class="bar-count">${v}</div>
         </div>
       `).join('')}
+    </div>
+
+    <div class="breakdown">
+      <h3>Content-Säulen &ndash; letzte 7 Tage</h3>
+      ${Object.keys(byPillar7d).length
+        ? Object.entries(byPillar7d).map(([k, v]) => `
+            <div class="bar-row">
+              <div class="bar-label">${k}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${(v / maxPillar7d) * 100}%"></div></div>
+              <div class="bar-count">${v}</div>
+            </div>
+          `).join('')
+        : '<div class="meta">Keine Posts in den letzten 7 Tagen.</div>'}
     </div>
   `;
 }

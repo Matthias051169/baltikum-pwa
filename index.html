@@ -243,7 +243,7 @@ let usdToEurUpdated = null;
 
 async function updateExchangeRate() {
   try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR', { cache: 'no-store' });
+    const res = await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=EUR', { cache: 'no-store' });
     const data = await res.json();
     if (data && data.rates && data.rates.EUR) {
       usdToEur = data.rates.EUR;

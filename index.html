@@ -1,2 +1,2338 @@
-&lt;!DOCTYPE html&gt;
-placeholder
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<base href="/webhook/baltikum-pwa/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Baltikum – Freigaben</title>
+<meta name="theme-color" content="#0A0E14">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baltikum">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,560;0,9..144,650;1,9..144,500&family=Inter:wght@400;500;600;700&family=Archivo+Narrow:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0E14; --ink-mid:#131A24; --fog:#1E2733;
+    --paper:#EDEAE1; --paper-dim:#9CA6AF; --paper-faint:#5E6A75;
+    --beam:#E8A33D; --beam-bright:#F4C169; --beam-dim:rgba(232,163,61,.16);
+    --alarm:#C0463B; --alarm-bright:#DD6152; --alarm-dim:rgba(192,70,59,.16);
+    --divider:rgba(237,234,225,.10); --divider-strong:rgba(237,234,225,.20);
+    --glass:rgba(237,234,225,.045); --glass-strong:rgba(237,234,225,.08);
+    --radius-lg:22px; --radius-md:16px; --radius-sm:10px; --radius-pill:999px;
+    --serif:'Archivo Narrow','Iowan Old Style','Palatino Linotype',sans-serif;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-top:env(safe-area-inset-top,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:var(--sans); color:var(--paper);
+    background:var(--ink); min-height:100vh; overscroll-behavior-y:none;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  #bg-canvas{position:fixed; inset:0; width:100%; height:100%; z-index:0; display:block;}
+  .app{position:relative; z-index:1; max-width:640px; margin:0 auto; padding:0 16px;
+    padding-bottom:calc(112px + var(--safe-bottom));}
+
+  /* ---------- Splash ---------- */
+  #splash{
+    position:fixed; inset:0; z-index:100; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:var(--ink);
+    transition:opacity .6s ease, visibility .6s;
+  }
+  #splash.hide{opacity:0; visibility:hidden; pointer-events:none;}
+  #splash-canvas{position:absolute; inset:0; width:100%; height:100%;}
+  .splash-content{position:relative; z-index:2; text-align:center; padding:0 24px; transform:translateY(-15vh);}
+  .splash-word{
+    font-family:'Archivo Narrow',var(--sans); font-weight:700; font-size:clamp(40px,12vw,56px);
+    letter-spacing:.13em; color:var(--paper); margin:0;
+    opacity:0; filter:blur(6px); transform:translateY(6px) scaleX(0.68); transform-origin:center;
+    animation:reveal 1.6s cubic-bezier(.19,1,.22,1) forwards .15s;
+  }
+  .splash-sub{
+    font-family:var(--sans); font-size:12.5px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--beam); margin-top:16px; opacity:0;
+    animation:fadein-sub 1.2s ease forwards 1.1s;
+  }
+  .splash-hint{
+    position:absolute; bottom:calc(48px + var(--safe-bottom)); left:0; right:0; text-align:center;
+    font-size:11.5px; color:var(--paper-faint); letter-spacing:.05em; opacity:0;
+    animation:fadein-sub 1s ease forwards 2.2s;
+  }
+  @keyframes reveal{to{opacity:1; filter:blur(0); transform:translateY(0) scaleX(0.68);}}
+  @keyframes fadein-sub{to{opacity:1;}}
+
+  /* ---------- Glass primitive ---------- */
+  .glass{
+    background:var(--glass); backdrop-filter:blur(20px) saturate(140%);
+    -webkit-backdrop-filter:blur(20px) saturate(140%);
+    border:1px solid var(--divider); box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    position:sticky; top:calc(1px + var(--safe-top)); z-index:20; margin:calc(1px + var(--safe-top)) 0 14px; padding:14px 16px;
+    border-radius:var(--radius-lg); display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+
+  .topbar h1{font-family:'Archivo Narrow',var(--sans); font-size:19px; font-weight:700; letter-spacing:.09em; margin:0;}
+  .topbar .sub{display:block; font-size:11px; color:var(--paper-dim); font-weight:500;
+    letter-spacing:.1em; text-transform:uppercase; margin-top:3px;}
+  .refresh-btn{
+    width:32px; height:32px; border-radius:50%; border:1px solid var(--divider);
+    background:transparent; color:var(--paper-dim); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:transform .4s cubic-bezier(.2,.9,.3,1), color .2s; flex-shrink:0;
+  }
+  .refresh-btn:active{transform:scale(.9) rotate(160deg); color:var(--beam);}
+  .refresh-btn.spinning svg{animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .pull-indicator{
+    position:fixed; top:0; left:50%; transform:translateX(-50%) translateY(-100%);
+    width:38px; height:38px; border-radius:50%; background:rgba(19,26,36,.9);
+    border:1px solid var(--divider-strong);
+    backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; opacity:0; pointer-events:none; transition:transform .25s ease, opacity .25s ease;
+  }
+  .pull-indicator.pulling{transition:none;}
+  .pull-indicator svg{width:18px; height:18px; color:var(--beam);}
+  .pull-indicator.refreshing svg{animation:spin .8s linear infinite;}
+
+  .view{display:none; animation:fadein .35s ease both;}
+  .view.active{display:block;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* ---------- Pending cards ---------- */
+  .card{border-radius:var(--radius-lg); overflow:hidden; margin-bottom:16px;
+    transition:opacity .4s ease, transform .4s ease;}
+  .card.leaving{opacity:0; transform:scale(.94);}
+  .card-image{width:100%; aspect-ratio:4/3; background:var(--fog) center/cover no-repeat; position:relative;}
+  .card-image img{width:100%; height:100%; object-fit:cover; display:block;}
+  .card-image .img-fade{position:absolute; inset:auto 0 0 0; height:60%;
+    background:linear-gradient(to top, rgba(6,9,13,.82), transparent);}
+  .mode-badge{position:absolute; top:12px; right:12px; padding:5px 11px; border-radius:var(--radius-pill);
+    font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); font-family:var(--sans);}
+  .mode-badge.live{background:rgba(192,70,59,.88); color:#fff;}
+  .mode-badge.test{background:rgba(237,234,225,.14); color:var(--paper); border:1px solid var(--divider-strong);}
+
+  .card-body{padding:18px 20px 20px;}
+  .eyebrow{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--beam-bright); background:var(--beam-dim); border:1px solid rgba(232,163,61,.3);
+    padding:4px 10px; border-radius:var(--radius-pill); font-family:var(--sans);}
+  .headline{font-family:var(--serif); font-size:19px; font-weight:560; line-height:1.3; margin:0 0 9px;}
+  .post-text{font-size:14px; line-height:1.6; color:var(--paper-dim); margin:0 0 12px;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;}
+  .post-text.expanded{-webkit-line-clamp:unset;}
+  .edit-btn{flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid var(--divider);
+    background:transparent; color:var(--paper-faint); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all .15s; margin-left:auto;}
+  .edit-btn:hover, .edit-btn:active{color:var(--beam-bright); border-color:rgba(232,163,61,.4); background:var(--beam-dim);}
+  .edit-headline-input{width:100%; font-family:'Archivo Narrow',var(--sans); font-size:19px; font-weight:700;
+    color:var(--paper); background:var(--fog); border:1px solid var(--divider-strong); border-radius:var(--radius-sm);
+    padding:8px 10px; margin:2px 0 10px; box-sizing:border-box;}
+  .edit-text-area{width:100%; font-family:var(--sans); font-size:14px; line-height:1.55; color:var(--paper-dim);
+    background:var(--fog); border:1px solid var(--divider-strong); border-radius:var(--radius-sm);
+    padding:10px; margin-bottom:10px; box-sizing:border-box; resize:vertical; min-height:120px;}
+  .edit-actions-row{display:flex; gap:10px; margin-bottom:10px;}
+  .edit-actions-row .btn-cancel{flex:1; min-height:44px; border-radius:var(--radius-pill);
+    background:rgba(237,234,225,.08); color:var(--paper); border:1px solid var(--divider-strong);
+    font-family:var(--sans); font-weight:650; font-size:14px; cursor:pointer;}
+  .edit-actions-row .edit-save-btn{flex:1; min-height:44px;}
+  .perf-section{margin:4px 0 14px;}
+  .perf-load-btn{background:none; border:1px solid var(--divider-strong); color:var(--paper-dim);
+    font-size:12.5px; font-weight:600; border-radius:var(--radius-pill); padding:8px 14px; cursor:pointer;
+    font-family:var(--sans);}
+  .perf-load-btn:active{background:var(--glass-strong);}
+  .perf-stats{display:flex; gap:16px; font-size:13.5px; color:var(--paper); font-weight:650;}
+
+    .read-more{background:none; border:none; color:var(--beam); font-size:12.5px; font-weight:600;
+    padding:0 0 14px; cursor:pointer; font-family:var(--sans);}
+  .hashtags{font-size:12.5px; color:var(--paper-faint); margin-bottom:18px; word-break:break-word;}
+  .meta-row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .timestamp{font-size:11.5px; color:var(--paper-faint); margin-left:auto;}
+
+  .card-actions{display:flex; gap:10px;}
+  .btn{flex:1; min-height:48px; border-radius:var(--radius-pill); border:1px solid transparent;
+    font-family:var(--sans); font-size:14.5px; font-weight:650; letter-spacing:.005em;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    cursor:pointer; transition:transform .15s ease, filter .15s ease; user-select:none;}
+  .btn:active{transform:scale(.96);}
+  .btn[disabled]{opacity:.45; pointer-events:none;}
+  .btn-reject{background:var(--alarm-dim); color:var(--alarm-bright); border-color:rgba(192,70,59,.35);}
+  .btn-approve{background:linear-gradient(135deg, var(--beam), var(--beam-bright)); color:#241705;}
+
+  /* ---------- Empty / loading ---------- */
+  .state-panel{border-radius:var(--radius-lg); padding:44px 28px; text-align:center; margin-top:8px;}
+  .state-panel .icon{font-size:30px; margin-bottom:14px; opacity:.75;}
+  .state-panel h3{font-family:var(--serif); font-size:17px; font-weight:560; margin:0 0 7px;}
+  .state-panel p{font-size:13.5px; color:var(--paper-dim); margin:0; line-height:1.55;}
+  .skeleton{border-radius:var(--radius-lg); height:320px; margin-bottom:16px;
+    background:linear-gradient(100deg, rgba(237,234,225,.03) 30%, rgba(237,234,225,.07) 50%, rgba(237,234,225,.03) 70%);
+    background-size:200% 100%; animation:shimmer 1.4s ease-in-out infinite;}
+  @keyframes shimmer{0%{background-position:180% 0;} 100%{background-position:-20% 0;}}
+
+  /* ---------- History ---------- */
+  .hist-row{display:flex; gap:14px; padding:14px 16px; border-radius:var(--radius-md); margin-bottom:10px;
+    align-items:center; transition:opacity .35s ease, transform .35s ease; cursor:pointer; position:relative;}
+  .hist-row.leaving{opacity:0; transform:scale(.96);}
+  .hist-row.expanded{display:block; padding:0; overflow:hidden;}
+  .hist-expanded-image{width:100%; aspect-ratio:16/9; background:var(--fog) center/cover no-repeat; position:relative;}
+  .hist-expanded-image img{width:100%; height:100%; object-fit:cover; display:block;}
+  .hist-expanded-image .img-fade{position:absolute; inset:auto 0 0 0; height:55%;
+    background:linear-gradient(to top, rgba(6,9,13,.75), transparent);}
+  .hist-expanded-body{padding:16px 20px 20px; cursor:default;}
+  .hist-expanded-title{font-family:var(--serif); font-size:19px; font-weight:560; line-height:1.32; margin:0 0 10px;}
+  .hist-expanded-text{font-size:14px; line-height:1.62; color:var(--paper-dim); white-space:pre-wrap; margin:0 0 14px;}
+  .reject-reason-tag{display:inline-block; font-size:11.5px; font-weight:600; color:var(--alarm-bright);
+    background:var(--alarm-dim); border:1px solid rgba(192,70,59,.3); padding:4px 10px; border-radius:var(--radius-pill);
+    margin-bottom:12px;}
+  .hist-collapse-hint{font-size:11.5px; color:var(--paper-faint); text-align:center; padding-top:2px; cursor:pointer;}
+  .hist-delete{flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1px solid var(--divider);
+    background:transparent; color:var(--paper-faint); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all .2s;}
+  .hist-delete:hover{color:var(--alarm-bright); border-color:rgba(192,70,59,.4); background:var(--alarm-dim);}
+  .hist-delete:active{transform:scale(.9);}
+  .hist-delete.hist-delete-expanded{position:absolute; top:12px; right:12px; z-index:2;
+    background:rgba(10,14,20,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:var(--paper);
+    border-color:rgba(237,234,225,.25);}
+  .hist-restore{flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1px solid var(--divider);
+    background:transparent; color:var(--paper-faint); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all .2s;}
+  .hist-restore:hover{color:var(--beam-bright); border-color:rgba(232,163,61,.4); background:var(--beam-dim);}
+  .hist-restore:active{transform:scale(.9);}
+  .hist-restore.hist-restore-expanded{position:absolute; top:12px; right:54px; z-index:2;
+    background:rgba(10,14,20,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:var(--paper);
+    border-color:rgba(237,234,225,.25);}
+  .hist-thumb{width:52px; height:52px; border-radius:var(--radius-sm); background:var(--fog) center/cover no-repeat;
+    flex-shrink:0; position:relative; overflow:hidden;}
+  .hist-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+  .hist-thumb.noimg::after{content:"—"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--paper-faint); font-size:14px;}
+  .hist-body{flex:1; min-width:0;}
+  .hist-title{font-family:var(--serif); font-size:14.5px; font-weight:560; margin:0 0 4px; line-height:1.3;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hist-meta{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--paper-faint);}
+  .hist-status{flex-shrink:0; font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 9px; border-radius:var(--radius-pill); white-space:nowrap;}
+  .hist-status.published{background:var(--beam-dim); color:var(--beam-bright); border:1px solid rgba(232,163,61,.3);}
+  .hist-status.approval_aborted{background:var(--alarm-dim); color:var(--alarm-bright); border:1px solid rgba(192,70,59,.3);}
+  .hist-status.approved_test_not_published{background:rgba(237,234,225,.08); color:var(--paper-dim); border:1px solid var(--divider-strong);}
+  .hist-status.duplicate_skipped{background:transparent; color:var(--paper-faint); border:1px solid var(--divider);}
+  .hist-status.archived{background:transparent; color:var(--paper-faint); border:1px solid var(--divider); opacity:.6;}
+
+  .filter-row{display:flex; gap:8px; margin-bottom:16px; overflow-x:auto; padding-bottom:2px;
+    scrollbar-width:none;}
+  .filter-row::-webkit-scrollbar{display:none;}
+  .filter-chip{flex-shrink:0; padding:8px 14px; border-radius:var(--radius-pill); font-size:12.5px; font-weight:600;
+    border:1px solid var(--divider); background:transparent; color:var(--paper-dim); cursor:pointer;
+    font-family:var(--sans); white-space:nowrap; transition:all .2s;}
+  .filter-chip.active{background:var(--beam); color:#241705; border-color:var(--beam);}
+  .hist-pagination{margin-top:6px; padding:6px 0 4px;}
+  .hist-pagination-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .hist-pagination-count{font-size:11.5px; color:var(--paper-faint); white-space:nowrap;}
+  .hist-more-btn{background:none; border:none; color:var(--beam); font-size:13.5px; font-weight:650; cursor:pointer; font-family:var(--sans); padding:6px;}
+  .hist-collapse-btn{background:none; border:none; color:var(--paper-dim); font-size:13px; font-weight:600; cursor:pointer; font-family:var(--sans); padding:6px;}
+
+  /* ---------- Stats ---------- */
+  .chart-panel{border-radius:var(--radius-lg); padding:20px 18px 16px; margin-bottom:16px;}
+  .chart-title{font-family:var(--serif); font-size:15px; font-weight:560; margin:0 0 2px;}
+  .chart-sub{font-size:11.5px; color:var(--paper-faint); margin-bottom:16px;}
+  .chart-legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; font-size:11px; color:var(--paper-dim);}
+  .chart-legend span{display:inline-flex; align-items:center; gap:5px;}
+  .legend-dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px;}
+  .stat-tile{border-radius:var(--radius-md); padding:16px 16px 14px;}
+  .stat-tile .num{font-family:var(--serif); font-size:26px; font-weight:560; letter-spacing:0;
+    font-variant-numeric:tabular-nums;}
+  .stat-tile .label{font-size:11.5px; color:var(--paper-dim); margin-top:2px; font-weight:500;}
+  .stat-tile.wide{grid-column:1 / -1;}
+  .stat-tile.accent .num{color:var(--beam-bright);}
+
+  .cost-row{display:flex; justify-content:space-between; align-items:baseline; padding:10px 0;
+    border-bottom:1px solid var(--divider); font-size:13.5px;}
+  .cost-row:last-of-type{border-bottom:none;}
+  .cost-row .v{font-weight:650; font-variant-numeric:tabular-nums;}
+  .cost-note{font-size:11px; color:var(--paper-faint); line-height:1.5; margin-top:10px;}
+
+  .pillar-bar-row{margin-bottom:12px;}
+  .pillar-bar-row .pl{display:flex; justify-content:space-between; font-size:12px; color:var(--paper-dim); margin-bottom:5px;}
+  .pillar-bar-track{height:5px; border-radius:99px; background:var(--divider); overflow:hidden;}
+  .pillar-bar-fill{height:100%; border-radius:99px; background:linear-gradient(90deg, var(--beam), var(--beam-bright));}
+
+  .section-title{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--paper-faint); margin:22px 4px 12px;}
+
+  /* ---------- Tab bar ---------- */
+  .tabbar{position:fixed; left:50%; bottom:calc(16px + var(--safe-bottom)); transform:translateX(-50%);
+    z-index:30; display:flex; gap:2px; padding:6px; border-radius:var(--radius-pill); width:min(94vw, 360px);}
+  .tab{position:relative; z-index:2; flex:1; min-height:52px; border:none; background:transparent;
+    color:var(--paper-faint); font-family:var(--sans); font-size:11.5px; font-weight:650;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    border-radius:var(--radius-pill); cursor:pointer; transition:color .25s;}
+  .tab.active{color:var(--beam-bright);}
+  .tab .dot{width:4px; height:4px; border-radius:50%; background:var(--beam); position:absolute; bottom:7px;
+    opacity:0; transition:opacity .25s;}
+  .tab.active .dot{opacity:1;}
+  .tab .badge-count{position:absolute; top:3px; right:calc(50% - 24px); min-width:15px; height:15px; padding:0 4px;
+    background:var(--alarm); color:#fff; font-size:9.5px; font-weight:800; border-radius:99px;
+    display:flex; align-items:center; justify-content:center;}
+
+  /* ---------- Live-confirm modal ---------- */
+  .modal-backdrop{position:fixed; inset:0; background:rgba(4,6,9,.68); backdrop-filter:blur(4px);
+    display:flex; align-items:flex-end; justify-content:center; z-index:50;
+    opacity:0; pointer-events:none; transition:opacity .25s ease;}
+  .modal-backdrop.open{opacity:1; pointer-events:auto;}
+  .modal-sheet{width:100%; max-width:520px; border-radius:26px 26px 0 0; padding:26px 24px calc(24px + var(--safe-bottom));
+    transform:translateY(100%); transition:transform .35s cubic-bezier(.22,1,.36,1); background:var(--ink-mid);
+    border:1px solid var(--divider); border-bottom:none;}
+  .modal-backdrop.open .modal-sheet{transform:translateY(0);}
+  .modal-sheet h3{font-family:'Archivo Narrow',var(--sans); font-size:19px; margin:0 0 8px; font-weight:700; letter-spacing:.02em;}
+  .modal-sheet p{font-size:13.5px; color:var(--paper-dim); line-height:1.55; margin:0 0 20px;}
+  .modal-actions{display:flex; gap:10px;}
+  .modal-actions .btn-cancel{flex:1; min-height:48px; border-radius:var(--radius-pill); background:transparent;
+    color:var(--paper); border:1px solid var(--divider-strong); font-family:var(--sans); font-weight:650;
+    font-size:14.5px; cursor:pointer;}
+  .reason-chips{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:14px;}
+  .reason-chip{min-height:46px; border-radius:var(--radius-md); border:1px solid var(--divider-strong);
+    background:rgba(237,234,225,.04); color:var(--paper); font-family:var(--sans); font-size:13.5px; font-weight:600;
+    cursor:pointer; transition:all .15s;}
+  .reason-chip:active{transform:scale(.96); background:var(--alarm-dim); border-color:rgba(192,70,59,.4); color:var(--alarm-bright);}
+  .reason-abort-btn{min-height:46px; border-radius:var(--radius-md); border:1px solid var(--divider-strong);
+    background:rgba(237,234,225,.04); color:var(--paper-dim); font-family:var(--sans); font-size:13.5px; font-weight:600;
+    cursor:pointer; transition:all .15s; grid-column:1 / -1;}
+  .reason-abort-btn:active{transform:scale(.96); background:var(--glass-strong);}
+
+  .manual-field{margin-bottom:16px;}
+  .manual-field-row{display:flex; gap:10px; align-items:flex-start; margin-bottom:16px;}
+  input[type="date"].manual-select, input[type="time"].manual-select{color-scheme:dark;}
+  .manual-map-preview{width:96px; height:78px; border-radius:var(--radius-sm); overflow:hidden;
+    border:1px solid var(--divider-strong); flex-shrink:0; background:var(--fog); margin-top:26px; position:relative;}
+  .manual-map-iframe{width:100%; height:100%; border:0; display:block; pointer-events:none;}
+  .manual-map-link{position:absolute; inset:0; display:block; cursor:pointer;}
+  .manual-label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--paper-faint); margin-bottom:8px;}
+  .manual-select, .manual-textarea{width:100%; border-radius:var(--radius-md); border:1px solid var(--divider-strong);
+    background:rgba(237,234,225,.04); color:var(--paper); font-family:var(--sans); font-size:14px; padding:11px 14px;
+    outline:none; resize:vertical;}
+  .manual-select:focus, .manual-textarea:focus{border-color:rgba(232,163,61,.4);}
+  .manual-select option{background:#131A24; color:#EDEAE1;}
+  .manual-toggle{display:flex; gap:8px;}
+  .manual-toggle-btn{flex:1; min-height:42px; border-radius:var(--radius-pill); border:1px solid var(--divider-strong);
+    background:transparent; color:var(--paper-dim); font-family:var(--sans); font-size:13.5px; font-weight:650; cursor:pointer;}
+  .manual-toggle-btn.active{background:var(--beam-dim); border-color:rgba(232,163,61,.4); color:var(--beam-bright);}
+  .manual-toggle-btn[data-mode="live"].active{background:var(--alarm-dim); border-color:rgba(192,70,59,.4); color:var(--alarm-bright);}
+  .manual-actions{display:flex; gap:10px; justify-content:center;}
+  .manual-actions .btn-cancel{flex:1; min-height:48px; border-radius:var(--radius-pill);
+    background:rgba(237,234,225,.08); color:var(--paper); border:1px solid var(--divider-strong);
+    font-family:var(--sans); font-weight:650; font-size:14.5px; cursor:pointer;}
+  .manual-actions .btn-cancel:active{transform:scale(.96);}
+  .manual-loading{display:flex; flex-direction:column; align-items:center; gap:9px; margin-top:16px;}
+  .manual-progress-track{width:100%; height:6px; border-radius:99px; background:var(--divider); overflow:hidden;}
+  .manual-progress-fill{height:100%; width:4%; border-radius:99px;
+    background:linear-gradient(90deg, var(--beam), var(--beam-bright));
+    transition:width .5s cubic-bezier(.4,0,.2,1);}
+  #manual-progress-label{font-size:12.5px; color:var(--paper-dim);}
+
+  .card-map{display:block; width:100%; height:100%; border:0;}
+  .map-overlay-link{position:absolute; inset:0; z-index:2; display:block; cursor:pointer;}
+  .map-badge{position:absolute; bottom:12px; right:12px; padding:5px 11px; border-radius:var(--radius-pill);
+    font-size:10.5px; font-weight:700; letter-spacing:.04em; background:rgba(10,14,20,.65); color:var(--paper);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:flex; align-items:center; gap:5px;
+    z-index:3; text-decoration:none; cursor:pointer; transition:background .2s;}
+  .map-badge:hover, .map-badge:active{background:rgba(232,163,61,.85); color:#241705;}
+
+  .toast{position:fixed; left:50%; bottom:calc(94px + var(--safe-bottom)); transform:translateX(-50%) translateY(10px);
+    padding:11px 18px; border-radius:var(--radius-pill); font-size:13px; font-weight:600;
+    z-index:60; opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; white-space:nowrap;
+    background:var(--ink-mid); border:1px solid var(--divider-strong); color:var(--paper);}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* ---------- Swipe (Freigaben) ---------- */
+  .swipe-wrap{position:relative; margin-bottom:16px;}
+  .swipe-bg{position:absolute; inset:0; border-radius:var(--radius-lg); overflow:hidden; display:flex;
+    pointer-events:none;}
+  .swipe-bg-half{flex:1; display:flex; align-items:center; opacity:0; transition:opacity .08s linear;}
+  .swipe-bg-half.left{justify-content:flex-start; padding-left:26px; background:linear-gradient(90deg, var(--alarm), rgba(192,70,59,0));}
+  .swipe-bg-half.right{justify-content:flex-end; padding-right:26px; background:linear-gradient(270deg, var(--beam), rgba(232,163,61,0));}
+  .swipe-bg-half svg{opacity:.95;}
+  .swipe-wrap .card{position:relative; z-index:1; touch-action:pan-y; margin-bottom:0;
+    transition:transform .3s cubic-bezier(.2,.9,.3,1);}
+  .swipe-wrap .card.dragging{transition:none;}
+
+  /* ---------- Verlaufs-Suche ---------- */
+  .search-row{position:relative; margin-bottom:14px;}
+  .search-input{width:100%; height:44px; border-radius:var(--radius-pill); border:1px solid var(--divider);
+    background:var(--glass); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); color:var(--paper);
+    font-family:var(--sans); font-size:14px; padding:0 18px 0 42px; outline:none;}
+  .search-input::placeholder{color:var(--paper-faint);}
+  .search-input:focus{border-color:rgba(232,163,61,.4);}
+  .search-icon{position:absolute; left:15px; top:50%; transform:translateY(-50%); color:var(--paper-faint); pointer-events:none;}
+
+  /* ---------- Heatmap ---------- */
+  .heatmap-panel{border-radius:var(--radius-lg); padding:20px 18px 16px; margin-bottom:16px;}
+  .heatmap-scroll{overflow-x:auto; scrollbar-width:none; padding-bottom:4px;}
+  .heatmap-scroll::-webkit-scrollbar{display:none;}
+
+  /* ---------- Splash-Zitat ---------- */
+  .splash-quote{margin-top:22px; max-width:320px; font-family:var(--serif); font-style:italic; font-size:13px;
+    line-height:1.55; color:var(--paper-dim); opacity:0; transition:opacity 1s ease; padding:0 12px;}
+  .splash-quote.show{opacity:1;}
+  .splash-quote .qmark{color:var(--beam); font-style:normal; margin-right:2px;}
+
+  /* ---------- Auth Overlay ---------- */
+  #auth-overlay{position:fixed; inset:0; z-index:200; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(4,6,9,.72); backdrop-filter:blur(6px);}
+  #auth-overlay.hidden{display:none;}
+  .auth-sheet{width:100%; max-width:420px; background:var(--ink-mid); border-radius:26px 26px 0 0;
+    padding:30px 24px calc(28px + var(--safe-bottom)); box-shadow:0 -12px 40px rgba(0,0,0,.5);
+    max-height:92vh; overflow-y:auto;}
+  .auth-title{font-family:var(--serif); font-size:22px; font-weight:650; margin:0 0 4px;}
+  .auth-sub{font-size:13px; color:var(--paper-dim); margin:0 0 22px; line-height:1.5;}
+  .auth-tabs{display:flex; gap:6px; background:var(--glass); border-radius:var(--radius-pill); padding:4px; margin-bottom:20px;}
+  .auth-tab{flex:1; text-align:center; padding:9px 0; border-radius:var(--radius-pill); font-size:13px; font-weight:600;
+    color:var(--paper-dim); cursor:pointer; transition:background .2s, color .2s;}
+  .auth-tab.active{background:var(--beam); color:#241705;}
+  .auth-field{margin-bottom:14px;}
+  .auth-field label{display:block; font-size:12px; color:var(--paper-dim); margin-bottom:6px; font-weight:500;}
+  .auth-field input{width:100%; border-radius:var(--radius-md); border:1px solid var(--divider-strong);
+    background:var(--glass); color:var(--paper); padding:12px 14px; font-size:15px; font-family:var(--sans);}
+  .auth-field input:focus{outline:none; border-color:rgba(232,163,61,.4);}
+  .auth-remember{display:flex; align-items:center; gap:9px; margin:4px 0 20px; font-size:13px; color:var(--paper-dim);}
+  .auth-remember input{width:18px; height:18px; accent-color:var(--beam);}
+  .auth-error{background:var(--alarm-dim); color:var(--alarm-bright); border-radius:var(--radius-sm);
+    padding:10px 13px; font-size:12.5px; margin-bottom:14px; display:none; line-height:1.5;}
+  .auth-error.show{display:block;}
+  .auth-form{display:none;}
+  .auth-form.active{display:block;}
+  .auth-hint{font-size:11.5px; color:var(--paper-faint); margin-top:16px; text-align:center; line-height:1.5;}
+  .auth-forgot-link{display:block; text-align:center; margin-top:14px; font-size:12.5px; color:var(--paper-dim);
+    background:none; border:none; cursor:pointer; font-family:var(--sans); text-decoration:underline; text-underline-offset:2px;}
+  .auth-forgot-link:active{color:var(--beam);}
+  .auth-success{background:var(--beam-dim); color:var(--beam-bright); border-radius:var(--radius-sm);
+    padding:10px 13px; font-size:12.5px; margin-bottom:14px; display:none; line-height:1.5;}
+  .auth-success.show{display:block;}
+  .auth-back-link{display:block; text-align:center; margin-top:6px; font-size:12.5px; color:var(--paper-dim);
+    background:none; border:none; cursor:pointer; font-family:var(--sans);}
+
+  .splash-login-btn{
+    position:absolute; bottom:calc(48px + var(--safe-bottom)); left:50%; transform:translateX(-50%);
+    min-width:200px; min-height:50px; padding:0 34px; border-radius:var(--radius-pill); border:none;
+    background:linear-gradient(135deg, var(--beam), var(--beam-bright)); color:#241705;
+    font-family:var(--sans); font-size:15px; font-weight:650; letter-spacing:.01em;
+    cursor:pointer; opacity:0; animation:fadein-sub 1s ease forwards 1.6s;
+  }
+  .splash-login-btn:active{transform:translateX(-50%) scale(.96);}
+  .auth-password-wrap{position:relative;}
+  .auth-password-wrap input{padding-right:44px;}
+  .auth-password-toggle{position:absolute; right:8px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:var(--paper-faint); cursor:pointer; padding:8px;
+    display:flex; align-items:center; justify-content:center;}
+  .auth-password-toggle:active{color:var(--beam);}
+  .adduser-divider{height:1px; background:var(--divider); margin:18px 0;}
+  .userlist-row{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--divider);}
+  .userlist-row:last-child{border-bottom:none;}
+  .userlist-info{flex:1; min-width:0;}
+  .userlist-name{font-size:14px; font-weight:650; color:var(--paper);}
+  .userlist-meta{font-size:11.5px; color:var(--paper-faint); margin-top:2px; display:block;}
+  .userlist-you-tag{font-size:10px; font-weight:700; color:var(--beam-bright); background:var(--beam-dim);
+    padding:2px 7px; border-radius:var(--radius-pill); margin-left:7px; letter-spacing:.04em;}
+  .userlist-delete{flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1px solid var(--divider);
+    background:transparent; color:var(--paper-faint); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .userlist-delete:hover{color:var(--alarm-bright); border-color:rgba(192,70,59,.4); background:var(--alarm-dim);}
+  .userlist-loading{font-size:12.5px; color:var(--paper-faint); padding:8px 0;}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div id="splash">
+  <canvas id="splash-canvas"></canvas>
+  <div class="splash-content">
+    <p class="splash-word">BALT<span id="i-letter">I</span>KUM</p>
+    <div class="splash-sub">Freigaben · Verlauf · Statistik</div>
+    <div class="splash-quote" id="splash-quote"></div>
+  </div>
+  <button class="splash-login-btn" id="splash-login-btn">Einloggen</button>
+</div>
+
+<div id="auth-overlay" class="hidden">
+  <div class="auth-sheet glass">
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="auth-tab-login">Anmelden</div>
+      <div class="auth-tab" id="auth-tab-register">Ersteinrichtung</div>
+    </div>
+
+    <div class="auth-form active" id="auth-form-login">
+      <p class="auth-title">Willkommen zur&uuml;ck</p>
+      <p class="auth-sub">Melde dich an, um Freigaben zu bearbeiten.</p>
+      <div class="auth-error" id="login-error"></div>
+      <div class="auth-field">
+        <label for="login-username">Benutzername</label>
+        <input type="text" id="login-username" autocomplete="username" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="auth-field">
+        <label for="login-password">Passwort</label>
+        <div class="auth-password-wrap">
+          <input type="password" id="login-password" autocomplete="current-password">
+          <button type="button" class="auth-password-toggle" id="login-password-toggle" aria-label="Passwort anzeigen">
+            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <label class="auth-remember"><input type="checkbox" id="login-remember" checked> Angemeldet bleiben</label>
+      <button class="btn btn-approve" id="login-submit" style="width:100%;">Anmelden</button>
+      <button type="button" class="auth-forgot-link" id="show-forgot-link">Passwort vergessen?</button>
+    </div>
+
+    <div class="auth-form" id="auth-form-forgot-email">
+      <p class="auth-title">Passwort vergessen</p>
+      <p class="auth-sub">Gib deine hinterlegte E-Mail-Adresse ein, wir schicken dir einen Code.</p>
+      <div class="auth-success" id="forgot-email-success"></div>
+      <div class="auth-error" id="forgot-email-error"></div>
+      <div class="auth-field">
+        <label for="forgot-email">E-Mail-Adresse</label>
+        <input type="email" id="forgot-email" autocomplete="email" autocapitalize="off" autocorrect="off">
+      </div>
+      <button class="btn btn-approve" id="forgot-email-submit" style="width:100%;">Code anfordern</button>
+      <button type="button" class="auth-back-link" id="forgot-back-to-login-1">Zurück zur Anmeldung</button>
+    </div>
+
+    <div class="auth-form" id="auth-form-forgot-reset">
+      <p class="auth-title">Neues Passwort setzen</p>
+      <p class="auth-sub">Code aus der E-Mail eingeben und ein neues Passwort vergeben.</p>
+      <div class="auth-error" id="forgot-reset-error"></div>
+      <div class="auth-field">
+        <label for="forgot-code">Code aus der E-Mail</label>
+        <input type="text" id="forgot-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-stelliger Code">
+      </div>
+      <div class="auth-field">
+        <label for="forgot-new-password">Neues Passwort (min. 8 Zeichen)</label>
+        <div class="auth-password-wrap">
+          <input type="password" id="forgot-new-password" autocomplete="new-password">
+          <button type="button" class="auth-password-toggle" id="forgot-new-password-toggle" aria-label="Passwort anzeigen">
+            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label for="forgot-new-password-confirm">Neues Passwort wiederholen</label>
+        <div class="auth-password-wrap">
+          <input type="password" id="forgot-new-password-confirm" autocomplete="new-password">
+          <button type="button" class="auth-password-toggle" id="forgot-new-password-confirm-toggle" aria-label="Passwort anzeigen">
+            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <button class="btn btn-approve" id="forgot-reset-submit" style="width:100%;">Passwort ändern</button>
+      <button type="button" class="auth-back-link" id="forgot-back-to-login-2">Zurück zur Anmeldung</button>
+    </div>
+
+    <div class="auth-form" id="auth-form-register">
+      <p class="auth-title">Ersteinrichtung</p>
+      <p class="auth-sub">Nur verf&uuml;gbar, solange noch kein Konto existiert.</p>
+      <div class="auth-error" id="register-error"></div>
+      <div class="auth-field">
+        <label for="register-username">Benutzername</label>
+        <input type="text" id="register-username" autocomplete="username" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="auth-field">
+        <label for="register-password">Passwort (min. 8 Zeichen)</label>
+        <div class="auth-password-wrap">
+          <input type="password" id="register-password" autocomplete="new-password">
+          <button type="button" class="auth-password-toggle" id="register-password-toggle" aria-label="Passwort anzeigen">
+            <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <label class="auth-remember"><input type="checkbox" id="register-remember" checked> Angemeldet bleiben</label>
+      <button class="btn btn-approve" id="register-submit" style="width:100%;">Konto anlegen</button>
+      <p class="auth-hint">Weitere Zug&auml;nge kann sp&auml;ter ein eingeloggter Nutzer anlegen.</p>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <header class="topbar glass">
+    <div>
+      <h1>Baltikum</h1>
+      <span class="sub" id="topbar-sub">Freigaben</span>
+    </div>
+    <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
+      <button class="refresh-btn" id="manual-add-btn" aria-label="Neuen Anlass eingeben" title="Neuen Anlass eingeben">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button class="refresh-btn" id="adduser-btn" aria-label="Nutzer hinzuf&uuml;gen" title="Nutzer hinzuf&uuml;gen">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+      </button>
+      <button class="refresh-btn" id="logout-btn" aria-label="Abmelden" title="Abmelden">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+      <button class="refresh-btn" id="refresh-btn" aria-label="Aktualisieren">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path>
+        </svg>
+      </button>
+
+    </div>
+  </header>
+
+  <main>
+    <section id="view-pending" class="view active">
+      <div id="pending-container"></div>
+    </section>
+
+    <section id="view-history" class="view">
+      <div class="search-row">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" class="search-input" id="history-search" placeholder="Verlauf durchsuchen…" autocomplete="off">
+      </div>
+      <div id="history-filters"></div>
+      <div id="history-container"></div>
+    </section>
+
+    <section id="view-stats" class="view">
+      <div id="stats-container"></div>
+    </section>
+  </main>
+</div>
+
+<nav class="tabbar glass">
+  <button class="tab active" data-view="pending" id="tab-pending">
+    <span class="dot"></span>
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    <span>Freigaben</span>
+    <span class="badge-count" id="pending-badge" hidden>0</span>
+  </button>
+  <button class="tab" data-view="history" id="tab-history">
+    <span class="dot"></span>
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+    <span>Verlauf</span>
+  </button>
+  <button class="tab" data-view="stats" id="tab-stats">
+    <span class="dot"></span>
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+    <span>Statistik</span>
+  </button>
+</nav>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal-sheet">
+    <h3 id="modal-title">Wirklich veröffentlichen?</h3>
+    <p id="modal-text">Dieser Post ist auf <strong>live</strong> gestellt und wird beim Freigeben sofort und öffentlich auf Facebook gepostet.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="modal-cancel">Abbrechen</button>
+      <button class="btn btn-approve" id="modal-confirm" style="flex:1;">Ja, veröffentlichen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="reason-backdrop">
+  <div class="modal-sheet">
+    <h3>Warum ablehnen?</h3>
+    <p>Optional – hilft dabei, Muster zu erkennen, die dir häufig nicht gefallen.</p>
+    <div class="reason-chips">
+      <button class="reason-chip" data-reason="Klischee">Klischee</button>
+      <button class="reason-chip" data-reason="Falscher Ton">Falscher Ton</button>
+      <button class="reason-chip" data-reason="Wiederholung">Wiederholung</button>
+      <button class="reason-chip" data-reason="Sonstiges">Sonstiges</button>
+      <button class="reason-abort-btn" id="reason-abort">Abbrechen (nicht ablehnen)</button>
+    </div>
+    <button class="btn-cancel" id="reason-skip" style="width:100%; margin-top:4px;">Ohne Angabe ablehnen</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="manual-backdrop">
+  <div class="modal-sheet" id="manual-sheet">
+    <h3>Neuer Anlass</h3>
+    <p>Läuft durch dieselbe Guardrails-Pipeline wie automatisch generierter Content. Kann bis zu einer Minute dauern.</p>
+    <div class="manual-field">
+      <label class="manual-label">Thema</label>
+      <select class="manual-select" id="manual-pillar">
+        <option>Figuren & Konflikte</option>
+        <option>Baltikum & Ostseeraum</option>
+        <option>Spannung & Moral</option>
+        <option>Recherche & Realität</option>
+        <option>Atmosphäre & Schauplätze</option>
+        <option>Schreibprozess</option>
+        <option>Leserfrage</option>
+        <option selected>Event & Termine</option>
+      </select>
+    </div>
+    <div class="manual-field-row">
+      <div class="manual-field" style="flex:1; margin-bottom:0;">
+        <label class="manual-label">Anlass / Idee (optional)</label>
+        <textarea class="manual-textarea" id="manual-idea" placeholder="z. B. Lesung in Hamburg, oder leer lassen für freie Themenwahl innerhalb des Themas…" rows="3"></textarea>
+      </div>
+      <div class="manual-field" id="manual-eventdate-field" style="width:132px; margin-bottom:0;">
+        <label class="manual-label">Termin</label>
+        <input type="date" class="manual-select" id="manual-eventdate" style="margin-bottom:8px;">
+        <input type="time" class="manual-select" id="manual-eventtime">
+      </div>
+    </div>
+    <div class="manual-field-row" id="manual-location-field">
+      <div class="manual-field" style="flex:1; margin-bottom:0;">
+        <label class="manual-label">Ort, falls reales Event (optional)</label>
+        <input type="text" class="manual-select" id="manual-location" placeholder="z. B. Literaturhaus Hamburg, Schwanenwik 38">
+      </div>
+      <div class="manual-map-preview" id="manual-map-preview-wrap" hidden>
+        <iframe id="manual-map-preview" class="manual-map-iframe" src="" loading="lazy" tabindex="-1" title="Kartenvorschau"></iframe>
+        <a id="manual-map-link" class="manual-map-link" href="#" target="_blank" rel="noopener" aria-label="In Google Maps öffnen (Route abrufen)" title="In Google Maps öffnen"></a>
+      </div>
+    </div>
+    <div class="manual-field">
+      <label class="manual-label">Modus</label>
+      <div class="manual-toggle">
+        <button type="button" class="manual-toggle-btn active" data-mode="test">Test</button>
+        <button type="button" class="manual-toggle-btn" data-mode="live">Live</button>
+      </div>
+    </div>
+    <div class="manual-actions">
+      <button class="btn-cancel" id="manual-cancel">Abbrechen</button>
+      <button class="btn btn-approve" id="manual-submit" style="flex:1;">Generieren</button>
+    </div>
+    <div class="manual-loading" id="manual-loading" hidden>
+      <div class="manual-progress-track"><div class="manual-progress-fill" id="manual-progress-fill"></div></div>
+      <span id="manual-progress-label">Anfrage wird gesendet…</span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="adduser-backdrop">
+  <div class="modal-sheet">
+    <h3>Nutzerverwaltung</h3>
+    <p>Bestehende Zugänge verwalten oder einen neuen anlegen.</p>
+    <div id="userlist-container"></div>
+    <div class="adduser-divider"></div>
+    <p class="manual-label" style="margin-bottom:12px;">Eigenes Passwort ändern</p>
+    <div class="auth-error" id="changepw-error"></div>
+    <div class="auth-success" id="changepw-success"></div>
+    <div class="auth-field">
+      <label for="changepw-current">Aktuelles Passwort</label>
+      <div class="auth-password-wrap">
+        <input type="password" id="changepw-current" autocomplete="current-password">
+        <button type="button" class="auth-password-toggle" id="changepw-current-toggle" aria-label="Passwort anzeigen">
+          <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="auth-field">
+      <label for="changepw-new">Neues Passwort (min. 8 Zeichen)</label>
+      <div class="auth-password-wrap">
+        <input type="password" id="changepw-new" autocomplete="new-password">
+        <button type="button" class="auth-password-toggle" id="changepw-new-toggle" aria-label="Passwort anzeigen">
+          <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="auth-field">
+      <label for="changepw-new-confirm">Neues Passwort wiederholen</label>
+      <div class="auth-password-wrap">
+        <input type="password" id="changepw-new-confirm" autocomplete="new-password">
+        <button type="button" class="auth-password-toggle" id="changepw-new-confirm-toggle" aria-label="Passwort anzeigen">
+          <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn btn-approve" id="changepw-submit" style="width:100%;">Passwort ändern</button>
+    <div class="adduser-divider"></div>
+    <p class="manual-label" style="margin-bottom:12px;">Neuen Nutzer anlegen</p>
+    <p style="font-size:12.5px; color:var(--paper-dim); margin:-6px 0 16px;">Der neue Zugang kann sich sofort mit diesen Daten einloggen.</p>
+    <div class="auth-error" id="adduser-error"></div>
+    <div class="auth-field">
+      <label for="adduser-username">Benutzername</label>
+      <input type="text" id="adduser-username" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="auth-field">
+      <label for="adduser-password">Passwort (min. 8 Zeichen)</label>
+      <div class="auth-password-wrap">
+        <input type="password" id="adduser-password" autocomplete="new-password">
+        <button type="button" class="auth-password-toggle" id="adduser-password-toggle" aria-label="Passwort anzeigen">
+          <svg class="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg class="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="adduser-cancel">Abbrechen</button>
+      <button class="btn btn-approve" id="adduser-submit" style="flex:1;">Anlegen</button>
+    </div>
+  </div>
+</div>
+
+<div class="pull-indicator" id="pull-indicator">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path>
+  </svg>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     Generativer Hintergrund — Baltische Nebelfelder + Leuchtturm-Lichtkegel.
+     Jeder Seitenaufruf erzeugt neue, zufällige Parameter.
+  ========================================================= */
+  function makeFogField(canvas, opts){
+    opts = opts || {};
+    var ctx = canvas.getContext("2d");
+    var W, H, DPR = Math.min(window.devicePixelRatio || 1, 2);
+    var blobs = [];
+    var theta = Math.random() * Math.PI * 2;
+    var orbitSpeed = opts.orbitSpeed != null ? opts.orbitSpeed : 0.00025;
+    var orbitRadiusFactor = opts.orbitRadiusFactor != null ? opts.orbitRadiusFactor : 0.28;
+    var followEl = opts.followSelector ? document.querySelector(opts.followSelector) : null;
+    var fallbackSource = { x: opts.beamX != null ? opts.beamX : 0.82, y: opts.beamY != null ? opts.beamY : 0.22 };
+    var showStars = opts.showStars !== false;
+    var stars = [];
+
+    function resize(){
+      W = canvas.clientWidth; H = canvas.clientHeight;
+      canvas.width = W * DPR; canvas.height = H * DPR;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+    function initBlobs(n){
+      blobs = [];
+      for (var i=0;i<n;i++){
+        blobs.push({
+          x: Math.random(), y: 0.35 + Math.random()*0.65,
+          r: 0.22 + Math.random()*0.34,
+          drift: (Math.random()-0.5) * 0.00006,
+          alpha: 0.05 + Math.random()*0.08,
+          phase: Math.random()*Math.PI*2
+        });
+      }
+    }
+    function initStars(n){
+      stars = [];
+      for (var i=0;i<n;i++){
+        stars.push({
+          x: Math.random(), y: Math.random()*0.5,
+          r: 0.6 + Math.random()*1.3,
+          a: 0.15 + Math.random()*0.35,
+          tw: Math.random()*Math.PI*2
+        });
+      }
+    }
+    resize();
+    initBlobs(opts.blobCount || 7);
+    if (showStars) initStars(opts.starCount || 40);
+    window.addEventListener("resize", resize);
+
+    var t0 = performance.now();
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function frame(now){
+      var t = (now - t0);
+      ctx.clearRect(0,0,W,H);
+
+      var grad = ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0, "#0A0E14");
+      grad.addColorStop(0.55, "#0D1219");
+      grad.addColorStop(1, "#131A24");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+
+      // stars
+      if (showStars){
+        for (var i=0;i<stars.length;i++){
+          var s = stars[i];
+          var tw = reduced ? s.a : s.a * (0.7 + 0.3*Math.sin(t*0.0006 + s.tw));
+          ctx.fillStyle = "rgba(237,234,225," + tw.toFixed(3) + ")";
+          ctx.beginPath();
+          ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      // Leuchtturm-Kegel: Lichtquelle fest (folgt optional einem DOM-Element), Kegel
+      // kreist auf horizontaler Umlaufbahn und verschwindet weich auf der Rueckseite.
+      if (!reduced) theta += orbitSpeed * 16;
+      var sx, sy;
+      if (followEl){
+        var canvasRect = canvas.getBoundingClientRect();
+        var elRect = followEl.getBoundingClientRect();
+        sx = (elRect.left + elRect.width/2 - canvasRect.left) - elRect.width*0.10;
+        sy = (elRect.top - canvasRect.top) - elRect.height*0.06;
+      } else {
+        sx = fallbackSource.x * W; sy = fallbackSource.y * H;
+      }
+      var R = W * orbitRadiusFactor;
+      var px = sx + R * Math.cos(theta);
+      var z = Math.sin(theta);
+      var fade = Math.max(0, z);
+
+      var sourceGlow = ctx.createRadialGradient(sx,sy,0,sx,sy,W*0.018);
+      sourceGlow.addColorStop(0,"rgba(255,214,140,0.5)");
+      sourceGlow.addColorStop(1,"rgba(255,214,140,0)");
+      ctx.fillStyle = sourceGlow;
+      ctx.beginPath(); ctx.arc(sx,sy,W*0.018,0,Math.PI*2); ctx.fill();
+
+      if (fade > 0.002){
+        var intensity = fade;
+        var pRad = W * (0.009 + fade*0.02);
+        var glowRad = pRad * 4.5;
+        var coneHalfWidth = glowRad;
+
+        var coneGrad = ctx.createLinearGradient(sx, sy, px, sy);
+        coneGrad.addColorStop(0, "rgba(232,163,61,0)");
+        coneGrad.addColorStop(0.18, "rgba(232,163,61," + (intensity*0.32).toFixed(3) + ")");
+        coneGrad.addColorStop(1, "rgba(232,163,61,0)");
+
+        ctx.fillStyle = coneGrad;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(px, sy - coneHalfWidth);
+        ctx.lineTo(px, sy + coneHalfWidth);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // fog blobs
+      for (var j=0;j<blobs.length;j++){
+        var b = blobs[j];
+        var bxp = ((b.x + (reduced?0:b.drift*t)) % 1 + 1) % 1;
+        var byp = b.y + (reduced?0:Math.sin(t*0.00012 + b.phase)*0.02);
+        var r = b.r * W;
+        var fog = ctx.createRadialGradient(bxp*W, byp*H, 0, bxp*W, byp*H, r);
+        fog.addColorStop(0, "rgba(30,39,51," + b.alpha + ")");
+        fog.addColorStop(1, "rgba(30,39,51,0)");
+        ctx.fillStyle = fog;
+        ctx.beginPath(); ctx.arc(bxp*W, byp*H, r, 0, Math.PI*2); ctx.fill();
+      }
+
+      // vignette
+      var vg = ctx.createRadialGradient(W/2,H*0.4,H*0.2, W/2,H*0.5,H*0.9);
+      vg.addColorStop(0,"rgba(0,0,0,0)");
+      vg.addColorStop(1,"rgba(0,0,0,0.35)");
+      ctx.fillStyle = vg;
+      ctx.fillRect(0,0,W,H);
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  makeFogField(document.getElementById("bg-canvas"), { blobCount: 6, starCount: 34, beamX:0.82, beamY:0.22, orbitSpeed:0.0009, orbitRadiusFactor:0.30 });
+  makeFogField(document.getElementById("splash-canvas"), { blobCount: 9, showStars:false, followSelector:"#i-letter", orbitSpeed:0.0009, orbitRadiusFactor:0.26 });
+
+  // ---- Splash Auto-Dismiss ----
+  var splash = document.getElementById("splash");
+  function dismissSplash(){ splash.classList.add("hide"); }
+
+  // ---- Titel-Zentrierung: Trailing-Letter-Spacing per negativem margin kompensieren ----
+  function fixTitleCentering(){
+    var word = document.querySelector(".splash-word");
+    if (!word) return;
+    var cs = getComputedStyle(word);
+    var spacing = parseFloat(cs.letterSpacing) || 0;
+    word.style.marginRight = (-spacing) + "px";
+  }
+  fixTitleCentering();
+  if (document.fonts && document.fonts.ready){
+    document.fonts.ready.then(fixTitleCentering);
+  }
+  var titleResizeTimer = null;
+  window.addEventListener("resize", function(){
+    clearTimeout(titleResizeTimer);
+    titleResizeTimer = setTimeout(fixTitleCentering, 150);
+  });
+
+  /* =========================================================
+     App-Logik
+  ========================================================= */
+  var API_BASE = "https://n8n.taila03b27.ts.net/webhook";
+  var SESSION_TOKEN = null;
+  var SESSION_STORAGE_KEY = "baltikum_session";
+
+  function loadStoredSession(){
+    try { var t = localStorage.getItem(SESSION_STORAGE_KEY); if (t) return t; } catch(e){}
+    try { var t2 = sessionStorage.getItem(SESSION_STORAGE_KEY); if (t2) return t2; } catch(e){}
+    return null;
+  }
+  function storeSession(token, remember){
+    try {
+      if (remember){ localStorage.setItem(SESSION_STORAGE_KEY, token); sessionStorage.removeItem(SESSION_STORAGE_KEY); }
+      else { sessionStorage.setItem(SESSION_STORAGE_KEY, token); localStorage.removeItem(SESSION_STORAGE_KEY); }
+    } catch(e){}
+    SESSION_TOKEN = token;
+  }
+  function clearSession(){
+    try { localStorage.removeItem(SESSION_STORAGE_KEY); } catch(e){}
+    try { sessionStorage.removeItem(SESSION_STORAGE_KEY); } catch(e){}
+    SESSION_TOKEN = null;
+  }
+
+  var els = {
+    pendingContainer: document.getElementById("pending-container"),
+    historyContainer: document.getElementById("history-container"),
+    historyFilters: document.getElementById("history-filters"),
+    historySearch: document.getElementById("history-search"),
+    statsContainer: document.getElementById("stats-container"),
+    topbarSub: document.getElementById("topbar-sub"),
+    refreshBtn: document.getElementById("refresh-btn"),
+    tabs: { pending: document.getElementById("tab-pending"), history: document.getElementById("tab-history"), stats: document.getElementById("tab-stats") },
+    views: { pending: document.getElementById("view-pending"), history: document.getElementById("view-history"), stats: document.getElementById("view-stats") },
+    pendingBadge: document.getElementById("pending-badge"),
+    modalBackdrop: document.getElementById("modal-backdrop"),
+    modalConfirm: document.getElementById("modal-confirm"),
+    modalCancel: document.getElementById("modal-cancel"),
+    toast: document.getElementById("toast")
+  };
+
+  var state = { view: "pending", pending: [], history: [], stats: null, historyFilter: "all", historySearch: "", historyPage: 0,
+    pendingLoaded:false, historyLoaded:false, statsLoaded:false };
+
+  var pillarLabels = {};
+  var STATUS_LABELS = {
+    published: "Veröffentlicht", approval_aborted: "Abgelehnt",
+    approved_test_not_published: "Test freigegeben", duplicate_skipped: "Duplikat", archived: "Archiviert"
+  };
+  var STATUS_COLORS = {
+    published: "#E8A33D", approval_aborted: "#C0463B",
+    approved_test_not_published: "#9CA6AF", duplicate_skipped: "#5E6A75", archived: "#3A4249"
+  };
+
+  function getJSON(path){ return fetch(API_BASE + path, { headers: { "Accept": "application/json" } }).then(function(r){ return r.json(); }); }
+  function postJSON(path, body){
+    return fetch(API_BASE + path, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data && data.error === "Unauthorized"){ handleSessionExpired(); }
+        return data;
+      });
+  }
+
+  function fetchPending(){
+    return getJSON("/baltikum-pwa-pending?session_token=" + encodeURIComponent(SESSION_TOKEN)).then(function(data){
+      if (data && data.error) throw new Error(data.error);
+      state.pending = (data && data.pending) || [];
+      state.pendingLoaded = true;
+      renderPending(); updateBadge();
+    }).catch(renderPendingError);
+  }
+  function fetchHistory(){
+    return getJSON("/baltikum-pwa-history?session_token=" + encodeURIComponent(SESSION_TOKEN)).then(function(data){
+      if (data && data.error) throw new Error(data.error);
+      state.history = (data && data.history) || [];
+      state.historyLoaded = true;
+      renderHistoryFilters(); renderHistory();
+      if (state.statsLoaded) renderStats();
+      showSplashQuote();
+    }).catch(renderHistoryError);
+  }
+  function showSplashQuote(){
+    var el = document.getElementById("splash-quote");
+    if (!el || splash.classList.contains("hide")) return;
+    var published = state.history.filter(function(h){ return h.status === "published" && h.headline; });
+    if (!published.length) return;
+    var pick = published[Math.floor(Math.random()*published.length)];
+    el.innerHTML = '<span class="qmark">„</span>' + escapeHtml(pick.headline) + '<span class="qmark">"</span>';
+    requestAnimationFrame(function(){ el.classList.add("show"); });
+  }
+  function fetchStats(){
+    return getJSON("/baltikum-pwa-stats?session_token=" + encodeURIComponent(SESSION_TOKEN)).then(function(data){
+      if (data && data.error) throw new Error(data.error);
+      state.stats = data; state.statsLoaded = true;
+      renderStats();
+    }).catch(renderStatsError);
+  }
+  function refreshAll(){
+    els.refreshBtn.classList.add("spinning");
+    Promise.all([fetchPending(), fetchHistory(), fetchStats()]).finally(function(){
+      setTimeout(function(){ els.refreshBtn.classList.remove("spinning"); }, 200);
+    });
+  }
+
+  /* ---- Pending ---- */
+  function renderPendingLoading(){ els.pendingContainer.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>'; }
+  function friendlyErrorMessage(err){
+    if (err instanceof TypeError || (err && /failed to fetch|networkerror|load failed/i.test(err.message||""))){
+      return "Keine Verbindung zum Server. Bitte Internetverbindung prüfen und erneut versuchen.";
+    }
+    return (err && err.message) || String(err);
+  }
+  function renderPendingError(err){
+    var msg = friendlyErrorMessage(err);
+    els.pendingContainer.innerHTML = '<div class="state-panel glass"><div class="icon">' + (msg.indexOf("Verbindung")===0?"📡":"⚠️") + '</div><h3>' + (msg.indexOf("Verbindung")===0?"Keine Verbindung":"Konnte nicht laden") + '</h3><p>' + escapeHtml(msg) + '</p></div>';
+  }
+  function renderPending(){
+    if (!state.pending.length){
+      els.pendingContainer.innerHTML = '<div class="state-panel glass"><div class="icon">🌊</div><h3>Keine wartenden Freigaben</h3><p>Sobald der nächste Post generiert wurde, erscheint er hier.</p></div>';
+      return;
+    }
+    els.pendingContainer.innerHTML = state.pending.map(function(item){
+      return '<div class="swipe-wrap" data-id="' + attr(item.id) + '">' +
+        '<div class="swipe-bg">' +
+          '<div class="swipe-bg-half left"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></div>' +
+          '<div class="swipe-bg-half right"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#241705" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>' +
+        '</div>' +
+        cardHtml(item) +
+        '</div>';
+    }).join("");
+    els.pendingContainer.querySelectorAll(".swipe-wrap").forEach(function(wrap){
+      var id = wrap.getAttribute("data-id");
+      var item = state.pending.filter(function(p){ return p.id === id; })[0];
+      if (!item) return;
+      wireCard(wrap, wrap.querySelector(".card"), item);
+    });
+  }
+
+  function wireCard(wrap, card, item){
+    var readMore = card.querySelector(".read-more");
+    if (readMore){
+      readMore.addEventListener("click", function(){
+        var p = card.querySelector(".post-text");
+        p.classList.toggle("expanded");
+        readMore.textContent = p.classList.contains("expanded") ? "Weniger anzeigen" : "Mehr anzeigen";
+      });
+    }
+    card.querySelector(".btn-reject").addEventListener("click", function(){ openRejectReason(item, card); });
+    card.querySelector(".btn-approve").addEventListener("click", function(){
+      if (String(item.publish_mode||"").toLowerCase() === "live") openLiveConfirm(item, card);
+      else handleDecision(item, "approve", card);
+    });
+    var editBtn = card.querySelector(".edit-btn");
+    if (editBtn) editBtn.addEventListener("click", function(){ enterEditMode(wrap, card, item); });
+    wireSwipe(wrap, card, item);
+  }
+
+  function replaceCardWithFresh(wrap, card, item){
+    var temp = document.createElement("div");
+    temp.innerHTML = cardHtml(item);
+    var newCard = temp.firstElementChild;
+    card.replaceWith(newCard);
+    wireCard(wrap, newCard, item);
+  }
+
+  function enterEditMode(wrap, card, item){
+    var headlineEl = card.querySelector(".headline");
+    var textEl = card.querySelector(".post-text");
+    var readMoreBtn = card.querySelector(".read-more");
+    var actionsEl = card.querySelector(".card-actions");
+    var editBtn = card.querySelector(".edit-btn");
+
+    var headlineInput = document.createElement("input");
+    headlineInput.type = "text";
+    headlineInput.className = "edit-headline-input";
+    headlineInput.value = item.headline || "";
+
+    var textArea = document.createElement("textarea");
+    textArea.className = "edit-text-area";
+    textArea.value = item.final_facebook_post || item.facebook_text || "";
+
+    headlineEl.replaceWith(headlineInput);
+    textEl.replaceWith(textArea);
+    if (readMoreBtn) readMoreBtn.style.display = "none";
+    if (editBtn) editBtn.style.display = "none";
+    actionsEl.style.display = "none";
+
+    var row = document.createElement("div");
+    row.className = "edit-actions-row";
+    row.innerHTML = '<button class="btn-cancel edit-cancel-btn">Abbrechen</button><button class="btn btn-approve edit-save-btn" style="flex:1;">Speichern</button>';
+    actionsEl.insertAdjacentElement("beforebegin", row);
+
+    row.querySelector(".edit-cancel-btn").addEventListener("click", function(){
+      replaceCardWithFresh(wrap, card, item);
+    });
+    row.querySelector(".edit-save-btn").addEventListener("click", function(){
+      var saveBtn = row.querySelector(".edit-save-btn");
+      var newHeadline = headlineInput.value.trim();
+      var newText = textArea.value.trim();
+      if (!newText){ showToast("Text darf nicht leer sein."); return; }
+      saveBtn.setAttribute("disabled","disabled");
+      postJSON("/baltikum-pwa-edit", { id: item.id, session_token: SESSION_TOKEN, headline: newHeadline, facebook_text: newText }).then(function(resp){
+        if (!resp || resp.error) throw new Error((resp && resp.error) || "Fehler beim Speichern");
+        item.headline = newHeadline;
+        item.facebook_text = newText;
+        item.final_facebook_post = newText;
+        showToast("Text gespeichert");
+        replaceCardWithFresh(wrap, card, item);
+      }).catch(function(err){
+        saveBtn.removeAttribute("disabled");
+        showToast("Fehler: " + (err.message||err));
+      });
+    });
+  }
+
+  function wireSwipe(wrap, card, item){
+    var bgLeft = wrap.querySelector(".swipe-bg-half.left");
+    var bgRight = wrap.querySelector(".swipe-bg-half.right");
+    var THRESHOLD = 96;
+    var active = false, startX = 0, startY = 0, dx = 0, dragging = false, pointerId = null;
+
+    card.addEventListener("pointerdown", function(e){
+      if (e.target.closest("button")) return;
+      active = true; dragging = false; startX = e.clientX; startY = e.clientY; dx = 0; pointerId = e.pointerId;
+    });
+    card.addEventListener("pointermove", function(e){
+      if (!active || e.pointerId !== pointerId) return;
+      var mdx = e.clientX - startX, mdy = e.clientY - startY;
+      if (!dragging){
+        if (Math.abs(mdx) < 8) return;
+        if (Math.abs(mdy) > Math.abs(mdx)) { active = false; return; } // vertikales Scrollen gewinnt
+        dragging = true;
+        card.classList.add("dragging");
+        card.setPointerCapture(pointerId);
+      }
+      dx = mdx;
+      card.style.transform = "translateX(" + dx + "px) rotate(" + (dx/40) + "deg)";
+      var t = Math.min(Math.abs(dx) / THRESHOLD, 1);
+      if (dx > 0){ bgRight.style.opacity = t; bgLeft.style.opacity = 0; }
+      else { bgLeft.style.opacity = t; bgRight.style.opacity = 0; }
+    });
+    function endDrag(e){
+      if (!active) return;
+      active = false;
+      if (!dragging) return;
+      dragging = false;
+      card.classList.remove("dragging");
+      bgLeft.style.opacity = 0; bgRight.style.opacity = 0;
+      if (dx > THRESHOLD){
+        card.style.transform = "translateX(140%) rotate(10deg)";
+        card.style.opacity = "0";
+        if (String(item.publish_mode||"").toLowerCase() === "live"){
+          card.style.transform = ""; card.style.opacity = "";
+          openLiveConfirm(item, card);
+        } else {
+          setTimeout(function(){ handleDecision(item, "approve", card); }, 120);
+        }
+      } else if (dx < -THRESHOLD){
+        card.style.transform = "translateX(-140%) rotate(-10deg)";
+        card.style.opacity = "0";
+        openRejectReason(item, card);
+      } else {
+        card.style.transform = ""; 
+      }
+    }
+    card.addEventListener("pointerup", endDrag);
+    card.addEventListener("pointercancel", endDrag);
+  }
+  function cardHtml(item){
+    var isLive = String(item.publish_mode||"").toLowerCase() === "live";
+    var text = item.final_facebook_post || item.facebook_text || "";
+    var pillar = item.content_pillar || "Ohne Rubrik";
+    var location = item.raw_payload && (item.raw_payload.location || item.raw_payload.manual_location || (item.raw_payload.prepared_node && item.raw_payload.prepared_node.manual_location));
+    return '<article class="card glass" data-id="' + attr(item.id) + '">' +
+      '<div class="card-image">' + (item.public_image_url ? '<img src="'+attr(item.public_image_url)+'" alt="" loading="lazy">' : '') +
+      '<div class="img-fade"></div><span class="mode-badge ' + (isLive?"live":"test") + '">' + (isLive?"Live":"Test") + '</span>' +
+      (location ? '<a class="map-badge" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location) + '" target="_blank" rel="noopener" aria-label="' + attr(location) + ' in Google Maps öffnen">📍 Karte</a>' : '') + '</div>' +
+      '<div class="card-body"><div class="meta-row"><span class="eyebrow">' + escapeHtml(pillar) + '</span>' +
+      '<span class="timestamp">' + relativeTime(item.created_at) + '</span>' +
+      '<button class="edit-btn" aria-label="Text bearbeiten" title="Text bearbeiten"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>' +
+      '<h3 class="headline">' + escapeHtml(item.headline||"") + '</h3>' +
+      '<p class="post-text">' + escapeHtml(text) + '</p>' +
+      (text.length > 220 ? '<button class="read-more">Mehr anzeigen</button>' : '') +
+      '<div class="hashtags">' + escapeHtml(item.hashtags||"") + '</div>' +
+      '<div class="card-actions"><button class="btn btn-reject">Ablehnen</button><button class="btn btn-approve">Freigeben</button></div>' +
+      '</div></article>';
+  }
+
+  function mapEmbedHtml(location){
+    var q = encodeURIComponent(location);
+    return '<iframe class="card-map" src="https://maps.google.com/maps?q=' + q + '&z=15&output=embed" loading="lazy" tabindex="-1" title="Kartenvorschau: ' + attr(location) + '"></iframe>' +
+      '<a class="map-overlay-link" href="https://www.google.com/maps/search/?api=1&query=' + q + '" target="_blank" rel="noopener" aria-label="' + attr(location) + ' in Google Maps öffnen"></a>';
+  }
+  function handleDecision(item, action, cardEl, reason){
+    var buttons = cardEl.querySelectorAll(".btn");
+    buttons.forEach(function(b){ b.setAttribute("disabled","disabled"); });
+    var endpoint = action === "approve" ? "/baltikum-pwa-approve" : "/baltikum-pwa-reject";
+    var body = { token: item.approval_token, session_token: SESSION_TOKEN };
+    if (action === "reject" && reason) body.reason = reason;
+    postJSON(endpoint, body).then(function(resp){
+      if (resp && resp.error) throw new Error(resp.error);
+      cardEl.classList.add("leaving");
+      showToast(action==="approve" ? (String(item.publish_mode).toLowerCase()==="live" ? "Veröffentlicht" : "Freigegeben (Test)") : "Abgelehnt");
+      setTimeout(function(){
+        state.pending = state.pending.filter(function(p){ return p.id !== item.id; });
+        if (!state.pending.length) renderPending(); else (cardEl.closest(".swipe-wrap") || cardEl).remove();
+        updateBadge();
+      }, 380);
+      fetchStats(); fetchHistory();
+    }).catch(function(err){
+      buttons.forEach(function(b){ b.removeAttribute("disabled"); });
+      showToast("Fehler: " + (err.message||err));
+    });
+  }
+  var liveConfirmCtx = null;
+  function openLiveConfirm(item, cardEl){ liveConfirmCtx = {item:item, cardEl:cardEl}; els.modalBackdrop.classList.add("open"); }
+  els.modalCancel.addEventListener("click", function(){ els.modalBackdrop.classList.remove("open"); liveConfirmCtx=null; });
+  els.modalBackdrop.addEventListener("click", function(e){ if (e.target===els.modalBackdrop){ els.modalBackdrop.classList.remove("open"); liveConfirmCtx=null; } });
+  els.modalConfirm.addEventListener("click", function(){
+    if (!liveConfirmCtx) return;
+    els.modalBackdrop.classList.remove("open");
+    handleDecision(liveConfirmCtx.item, "approve", liveConfirmCtx.cardEl);
+    liveConfirmCtx = null;
+  });
+
+  var reasonCtx = null;
+  var reasonBackdrop = document.getElementById("reason-backdrop");
+  var reasonSkip = document.getElementById("reason-skip");
+  function openRejectReason(item, cardEl){ reasonCtx = {item:item, cardEl:cardEl}; reasonBackdrop.classList.add("open"); }
+  function closeReasonModal(restoreCard){
+    reasonBackdrop.classList.remove("open");
+    if (restoreCard && reasonCtx && reasonCtx.cardEl){
+      reasonCtx.cardEl.style.transform = ""; reasonCtx.cardEl.style.opacity = "";
+    }
+    reasonCtx = null;
+  }
+  reasonBackdrop.addEventListener("click", function(e){ if (e.target===reasonBackdrop) closeReasonModal(true); });
+  reasonBackdrop.querySelectorAll(".reason-chip").forEach(function(chip){
+    chip.addEventListener("click", function(){
+      var reason = chip.getAttribute("data-reason");
+      reasonBackdrop.classList.remove("open");
+      if (reasonCtx) handleDecision(reasonCtx.item, "reject", reasonCtx.cardEl, reason);
+      reasonCtx = null;
+    });
+  });
+  reasonSkip.addEventListener("click", function(){
+    reasonBackdrop.classList.remove("open");
+    if (reasonCtx) handleDecision(reasonCtx.item, "reject", reasonCtx.cardEl, null);
+    reasonCtx = null;
+  });
+  document.getElementById("reason-abort").addEventListener("click", function(){
+    closeReasonModal(true);
+  });
+
+  /* ---- Manueller Anlass ---- */
+  var manualBackdrop = document.getElementById("manual-backdrop");
+  var manualBtn = document.getElementById("manual-add-btn");
+  var manualCancel = document.getElementById("manual-cancel");
+  var manualSubmit = document.getElementById("manual-submit");
+  var manualLoading = document.getElementById("manual-loading");
+  var manualIdea = document.getElementById("manual-idea");
+  var manualLocation = document.getElementById("manual-location");
+  var manualPillar = document.getElementById("manual-pillar");
+  var manualMode = "test";
+
+  manualBtn.addEventListener("click", function(){ manualBackdrop.classList.add("open"); });
+  manualCancel.addEventListener("click", function(){ if (manualLoading.hidden) manualBackdrop.classList.remove("open"); });
+  manualBackdrop.addEventListener("click", function(e){ if (e.target===manualBackdrop && manualLoading.hidden) manualBackdrop.classList.remove("open"); });
+  document.querySelectorAll(".manual-toggle-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      manualMode = btn.getAttribute("data-mode");
+      document.querySelectorAll(".manual-toggle-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+    });
+  });
+  var manualLocationField = document.getElementById("manual-location-field");
+  var manualEventDateField = document.getElementById("manual-eventdate-field");
+  var manualEventDate = document.getElementById("manual-eventdate");
+  var manualEventTime = document.getElementById("manual-eventtime");
+  manualEventDate.min = new Date().toISOString().slice(0,10);
+  var manualMapWrap = document.getElementById("manual-map-preview-wrap");
+  var manualMapIframe = document.getElementById("manual-map-preview");
+  function updateLocationFieldVisibility(){
+    var isEvent = (manualPillar.value === "Event & Termine");
+    manualLocationField.style.display = isEvent ? "" : "none";
+    manualEventDateField.style.display = isEvent ? "" : "none";
+    if (!isEvent){
+      manualEventDate.value = "";
+      manualEventTime.value = "";
+      manualMapWrap.hidden = true;
+      manualMapIframe.src = "";
+    }
+  }
+  manualPillar.addEventListener("change", updateLocationFieldVisibility);
+  updateLocationFieldVisibility();
+
+  var manualLocationDebounce = null;
+  manualLocation.addEventListener("input", function(){
+    clearTimeout(manualLocationDebounce);
+    manualLocationDebounce = setTimeout(function(){
+      var val = manualLocation.value.trim();
+      if (val.length > 2){
+        var q = encodeURIComponent(val);
+        manualMapIframe.src = "https://maps.google.com/maps?q=" + q + "&z=13&output=embed";
+        document.getElementById("manual-map-link").href = "https://www.google.com/maps/search/?api=1&query=" + q;
+        manualMapWrap.hidden = false;
+      } else {
+        manualMapWrap.hidden = true;
+        manualMapIframe.src = "";
+      }
+    }, 500);
+  });
+
+  var manualProgressFill = document.getElementById("manual-progress-fill");
+  var manualProgressLabel = document.getElementById("manual-progress-label");
+  var manualProgressTimer = null;
+  var PROGRESS_STAGES = [
+    { at: 0,     pct: 5,  label: "Anfrage wird gesendet…" },
+    { at: 2000,  pct: 20, label: "Text wird erstellt…" },
+    { at: 12000, pct: 45, label: "Guardrails prüfen den Entwurf…" },
+    { at: 18000, pct: 60, label: "Bildmotiv wird generiert…" },
+    { at: 32000, pct: 85, label: "Bild wird hochgeladen…" },
+    { at: 45000, pct: 95, label: "Fast fertig…" }
+  ];
+  function startManualProgress(){
+    var t0 = Date.now();
+    manualProgressFill.style.width = "4%";
+    manualProgressLabel.textContent = PROGRESS_STAGES[0].label;
+    manualProgressTimer = setInterval(function(){
+      var elapsed = Date.now() - t0;
+      var stage = PROGRESS_STAGES[0];
+      for (var i=0;i<PROGRESS_STAGES.length;i++){ if (elapsed >= PROGRESS_STAGES[i].at) stage = PROGRESS_STAGES[i]; }
+      manualProgressFill.style.width = stage.pct + "%";
+      manualProgressLabel.textContent = stage.label;
+    }, 400);
+  }
+  function finishManualProgress(success){
+    clearInterval(manualProgressTimer);
+    manualProgressFill.style.width = "100%";
+    manualProgressLabel.textContent = success ? "Fertig." : "Abgebrochen.";
+  }
+
+  manualSubmit.addEventListener("click", function(){
+    manualSubmit.setAttribute("disabled","disabled");
+    manualCancel.setAttribute("disabled","disabled");
+    manualLoading.hidden = false;
+    startManualProgress();
+    var ideaText = manualIdea.value.trim();
+    if (manualPillar.value === "Event & Termine" && manualEventDate.value){
+      var evD = new Date(manualEventDate.value + "T00:00:00");
+      var evLabel = evD.toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" });
+      var evPrefix = "Termin: " + evLabel;
+      if (manualEventTime.value) evPrefix += ", " + manualEventTime.value + " Uhr";
+      evPrefix += ".";
+      var locVal = manualLocation.value.trim();
+      if (locVal) evPrefix += " Ort: " + locVal + ".";
+      evPrefix += " Datum, Uhrzeit und Ort muessen im generierten Text klar erkennbar sein.";
+      ideaText = evPrefix + (ideaText ? " " + ideaText : "");
+    }
+    postJSON("/baltikum-pwa-manual", {
+      content_pillar: manualPillar.value,
+      idea: ideaText,
+      location: manualLocation.value.trim(),
+      publish_mode: manualMode,
+      session_token: SESSION_TOKEN
+    }).then(function(resp){
+      finishManualProgress(true);
+      manualSubmit.removeAttribute("disabled");
+      manualCancel.removeAttribute("disabled");
+      if (resp && resp.error) throw new Error(resp.error);
+      setTimeout(function(){
+        manualLoading.hidden = true;
+        manualBackdrop.classList.remove("open");
+        manualIdea.value = ""; manualLocation.value = ""; manualEventDate.value = ""; manualEventTime.value = "";
+        manualMapWrap.hidden = true; manualMapIframe.src = "";
+        showToast("Neuer Post erstellt");
+        fetchPending(); fetchStats();
+      }, 500);
+    }).catch(function(err){
+      finishManualProgress(false);
+      manualSubmit.removeAttribute("disabled");
+      manualCancel.removeAttribute("disabled");
+      setTimeout(function(){ manualLoading.hidden = true; }, 600);
+      showToast("Fehler: " + (err.message||err));
+    });
+  });
+  function updateBadge(){
+    var n = state.pending.length;
+    if (n>0){ els.pendingBadge.hidden=false; els.pendingBadge.textContent = n>99?"99+":String(n); }
+    else els.pendingBadge.hidden = true;
+  }
+
+  /* ---- History ---- */
+  function renderHistoryError(err){
+    var msg = friendlyErrorMessage(err);
+    els.historyContainer.innerHTML = '<div class="state-panel glass"><div class="icon">' + (msg.indexOf("Verbindung")===0?"📡":"⚠️") + '</div><h3>' + (msg.indexOf("Verbindung")===0?"Keine Verbindung":"Konnte nicht laden") + '</h3><p>' + escapeHtml(msg) + '</p></div>';
+  }
+  function renderHistoryFilters(){
+    var counts = {};
+    state.history.forEach(function(h){ counts[h.status] = (counts[h.status]||0)+1; });
+    var chips = [["all","Alle", state.history.length]].concat(
+      Object.keys(STATUS_LABELS).filter(function(s){ return counts[s]; }).map(function(s){ return [s, STATUS_LABELS[s], counts[s]]; })
+    );
+    els.historyFilters.innerHTML = '<div class="filter-row">' + chips.map(function(c){
+      return '<button class="filter-chip' + (state.historyFilter===c[0]?" active":"") + '" data-filter="' + c[0] + '">' + escapeHtml(c[1]) + ' · ' + c[2] + '</button>';
+    }).join("") + '</div>';
+    els.historyFilters.querySelectorAll(".filter-chip").forEach(function(chip){
+      chip.addEventListener("click", function(){
+        state.historyFilter = chip.getAttribute("data-filter");
+        state.historyPage = 0;
+        renderHistoryFilters(); renderHistory();
+      });
+    });
+  }
+  function renderHistory(){
+    var items = state.historyFilter==="all" ? state.history : state.history.filter(function(h){ return h.status===state.historyFilter; });
+    var q = state.historySearch.trim().toLowerCase();
+    if (q){
+      items = items.filter(function(h){
+        var hay = [h.headline, h.facebook_text, h.final_facebook_post, h.hashtags, h.content_pillar].filter(Boolean).join(" ").toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+    if (!items.length){
+      var msg = q ? "Kein Treffer für „" + escapeHtml(state.historySearch.trim()) + """ : "Entschiedene Posts erscheinen hier.";
+      els.historyContainer.innerHTML = '<div class="state-panel glass"><div class="icon">' + (q?"🔍":"📜") + '</div><h3>' + (q?"Nichts gefunden":"Noch kein Verlauf") + '</h3><p>' + msg + '</p></div>';
+      return;
+    }
+    var totalCount = items.length;
+    var PAGE1 = 5, PAGE_REST = 10;
+    var page = state.historyPage || 0;
+    var startIdx, endIdx;
+    if (page === 0){
+      startIdx = 0; endIdx = Math.min(PAGE1, totalCount);
+    } else {
+      startIdx = Math.min(PAGE1 + (page - 1) * PAGE_REST, totalCount);
+      endIdx = Math.min(startIdx + PAGE_REST, totalCount);
+    }
+    var pageItems = items.slice(startIdx, endIdx);
+    var rowsHtml = pageItems.map(function(h){
+      return '<div class="hist-row glass" data-id="' + attr(h.id) + '">' + collapsedRowInner(h) + '</div>';
+    }).join("");
+
+    var hasNext = endIdx < totalCount;
+    var hasPrev = page > 0;
+    var paginationHtml = "";
+    if (hasNext || hasPrev){
+      paginationHtml = '<div class="hist-pagination">';
+      paginationHtml += '<div class="hist-pagination-row">';
+      if (hasPrev) paginationHtml += '<button class="hist-collapse-btn" id="hist-prev-page">Zurück</button>';
+      paginationHtml += '<span class="hist-pagination-count">' + (startIdx+1) + '–' + endIdx + ' von ' + totalCount + '</span>';
+      if (hasNext) paginationHtml += '<button class="hist-more-btn" id="hist-next-page">Weiter (+' + Math.min(PAGE_REST, totalCount - endIdx) + ')</button>';
+      paginationHtml += '</div></div>';
+    }
+    els.historyContainer.innerHTML = rowsHtml + paginationHtml;
+
+    var nextBtn = document.getElementById("hist-next-page");
+    if (nextBtn) nextBtn.addEventListener("click", function(){
+      state.historyPage = (state.historyPage || 0) + 1;
+      renderHistory();
+      els.historyContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    var prevBtn = document.getElementById("hist-prev-page");
+    if (prevBtn) prevBtn.addEventListener("click", function(){
+      state.historyPage = Math.max(0, (state.historyPage || 0) - 1);
+      renderHistory();
+      els.historyContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  function collapsedRowInner(h){
+    var text = h.final_facebook_post || h.facebook_text || "";
+    return '<div class="hist-thumb' + (h.public_image_url?"":" noimg") + '">' + (h.public_image_url ? '<img src="'+attr(h.public_image_url)+'" alt="" loading="lazy">' : '') + '</div>' +
+      '<div class="hist-body"><div class="hist-title">' + escapeHtml(h.headline || text.slice(0,60) || "Ohne Titel") + '</div>' +
+      '<div class="hist-meta"><span>' + escapeHtml(h.content_pillar||"—") + '</span><span>·</span><span>' + relativeTime(h.approval_decided_at || h.created_at) + '</span></div></div>' +
+      '<span class="hist-status ' + h.status + '">' + escapeHtml(STATUS_LABELS[h.status] || h.status) + '</span>' +
+      (h.status === 'approval_aborted' ? '<button class="hist-restore" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zur\u00fcck in die Freigaben">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '') +
+      '<button class="hist-delete" data-id="' + attr(h.id) + '" aria-label="Archivieren" title="Aus dem Verlauf ausblenden (archivieren)">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>';
+  }
+
+  function expandedRowInner(h){
+    var text = h.final_facebook_post || h.facebook_text || "";
+    var reason = (h.raw_payload && h.raw_payload.rejection_reason) || null;
+    var location = (h.raw_payload && (h.raw_payload.location || h.raw_payload.manual_location || (h.raw_payload.prepared_node && h.raw_payload.prepared_node.manual_location))) || null;
+    var reasonHtml = reason ? '<div class="reject-reason-tag">Grund: ' + escapeHtml(reason) + '</div>' : "";
+    return (h.status === 'approval_aborted' ? '<button class="hist-restore hist-restore-expanded" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zur\u00fcck in die Freigaben">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '') +
+      '<button class="hist-delete hist-delete-expanded" data-id="' + attr(h.id) + '" aria-label="Archivieren" title="Aus dem Verlauf ausblenden (archivieren)">' +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>' +
+      '<div class="hist-expanded-image">' + (h.public_image_url ? '<img src="'+attr(h.public_image_url)+'" alt="" loading="lazy">' : '') +
+      '<div class="img-fade"></div>' + (location ? '<a class="map-badge" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location) + '" target="_blank" rel="noopener" aria-label="' + attr(location) + ' in Google Maps öffnen">📍 Karte</a>' : '') + '</div>' +
+      '<div class="hist-expanded-body">' +
+        '<div class="meta-row"><span class="eyebrow">' + escapeHtml(h.content_pillar||"Ohne Rubrik") + '</span>' +
+        '<span class="hist-status ' + h.status + '">' + escapeHtml(STATUS_LABELS[h.status]||h.status) + '</span></div>' +
+        '<h3 class="hist-expanded-title">' + escapeHtml(h.headline||"Ohne Titel") + '</h3>' +
+        reasonHtml +
+        '<p class="hist-expanded-text">' + escapeHtml(text) + '</p>' +
+        '<div class="hashtags">' + escapeHtml(h.hashtags||"") + '</div>' +
+        (h.status === 'published' && h.facebook_post_id ? '<div class="perf-section" id="perf-' + attr(h.id) + '"><button class="perf-load-btn" data-id="' + attr(h.id) + '" data-fbid="' + attr(h.facebook_post_id) + '">📊 Performance laden</button></div>' : '') +
+        '<div class="hist-collapse-hint">Zum Schließen antippen</div>' +
+      '</div>';
+  }
+
+  els.historyContainer.addEventListener("click", function(e){
+    var delBtn = e.target.closest(".hist-delete");
+    if (delBtn){ e.stopPropagation(); handleArchive(delBtn.getAttribute("data-id")); return; }
+    var restoreBtn = e.target.closest(".hist-restore");
+    if (restoreBtn){ e.stopPropagation(); handleRestore(restoreBtn.getAttribute("data-id")); return; }
+    var perfBtn = e.target.closest(".perf-load-btn");
+    if (perfBtn){ e.stopPropagation(); loadPostPerformance(perfBtn); return; }
+    var row = e.target.closest(".hist-row");
+    if (row) toggleExpandRow(row);
+  });
+
+  function loadPostPerformance(btn){
+    var fbid = btn.getAttribute("data-fbid");
+    var originalLabel = btn.textContent;
+    btn.setAttribute("disabled","disabled");
+    btn.textContent = "Lade…";
+    postJSON("/baltikum-pwa-post-insights", { session_token: SESSION_TOKEN, facebook_post_id: fbid }).then(function(resp){
+      if (!resp || resp.error){
+        btn.textContent = "Fehler beim Laden";
+        setTimeout(function(){ btn.textContent = originalLabel; btn.removeAttribute("disabled"); }, 2200);
+        return;
+      }
+      var wrap = btn.closest(".perf-section");
+      wrap.innerHTML = '<div class="perf-stats"><span>👍 ' + resp.likes + ' Likes</span><span>💬 ' + resp.comments + ' Kommentare</span></div>';
+    }).catch(function(){
+      btn.textContent = "Verbindung fehlgeschlagen";
+      setTimeout(function(){ btn.textContent = originalLabel; btn.removeAttribute("disabled"); }, 2200);
+    });
+  }
+
+  function toggleExpandRow(row){
+    if (row.classList.contains("expanding-lock")) return;
+    var id = row.getAttribute("data-id");
+    var item = state.history.filter(function(h){ return h.id === id; })[0];
+    if (!item) return;
+    if (row.classList.contains("expanded")) collapseRow(row, item); else expandRow(row, item);
+  }
+
+  function animateHeightSwap(row, applyNewContent, durationMs){
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced){ applyNewContent(); return; }
+    var startH = row.getBoundingClientRect().height;
+    row.classList.add("expanding-lock");
+    row.style.height = startH + "px";
+    row.style.overflow = "hidden";
+    row.offsetHeight; // reflow erzwingen
+
+    applyNewContent();
+
+    row.style.height = "auto";
+    var targetH = row.getBoundingClientRect().height;
+    row.style.height = startH + "px";
+    row.offsetHeight; // reflow erzwingen
+    row.style.transition = "height " + (durationMs/1000) + "s cubic-bezier(.4,0,.2,1)";
+    requestAnimationFrame(function(){ row.style.height = targetH + "px"; });
+
+    var done = false;
+    row.addEventListener("transitionend", function handler(e){
+      if (e.propertyName !== "height" || done) return;
+      done = true;
+      row.removeEventListener("transitionend", handler);
+      row.style.height = ""; row.style.overflow = ""; row.style.transition = "";
+      row.classList.remove("expanding-lock");
+    });
+    setTimeout(function(){
+      if (done) return; done = true;
+      row.style.height = ""; row.style.overflow = ""; row.style.transition = "";
+      row.classList.remove("expanding-lock");
+    }, durationMs + 150);
+  }
+
+  function expandRow(row, item){
+    animateHeightSwap(row, function(){ row.classList.add("expanded"); row.innerHTML = expandedRowInner(item); }, 420);
+  }
+  function collapseRow(row, item){
+    animateHeightSwap(row, function(){ row.classList.remove("expanded"); row.innerHTML = collapsedRowInner(item); }, 340);
+  }
+
+  function handleArchive(id){
+    var row = els.historyContainer.querySelector('.hist-row[data-id="' + CSS.escape(id) + '"]');
+    if (row) row.querySelector(".hist-delete").setAttribute("disabled", "disabled");
+    postJSON("/baltikum-pwa-archive", { id: id, session_token: SESSION_TOKEN }).then(function(resp){
+      if (resp && resp.error) throw new Error(resp.error);
+      showToast("Archiviert");
+      state.history = state.history.filter(function(h){ return h.id !== id; });
+      renderHistoryFilters();
+      if (row) collapseAndRemove(row); else renderHistory();
+      fetchStats();
+    }).catch(function(err){
+      if (row) row.querySelector(".hist-delete").removeAttribute("disabled");
+      showToast("Fehler: " + (err.message||err));
+    });
+  }
+
+  function handleRestore(id){
+    var row = els.historyContainer.querySelector('.hist-row[data-id="' + CSS.escape(id) + '"]');
+    var btn = row ? row.querySelector(".hist-restore") : null;
+    if (btn) btn.setAttribute("disabled", "disabled");
+    postJSON("/baltikum-pwa-restore", { id: id, session_token: SESSION_TOKEN }).then(function(resp){
+      if (resp && resp.error) throw new Error(resp.error);
+      showToast("Wiederhergestellt \u2013 wieder in den Freigaben");
+      state.history = state.history.filter(function(h){ return h.id !== id; });
+      renderHistoryFilters();
+      if (row) collapseAndRemove(row); else renderHistory();
+      fetchStats(); fetchPending();
+    }).catch(function(err){
+      if (btn) btn.removeAttribute("disabled");
+      showToast("Fehler: " + (err.message||err));
+    });
+  }
+
+  function collapseAndRemove(row){
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced){ row.remove(); if (!els.historyContainer.children.length) renderHistory(); return; }
+
+    // Phase 1: ausblenden
+    row.classList.add("leaving");
+
+    setTimeout(function(){
+      // Phase 2: Höhe/Abstände auf den gemessenen Ist-Wert fixieren, dann auf 0 kollabieren.
+      // Das lässt nachfolgende Kacheln über den normalen Layout-Reflow sanft nachrutschen.
+      var rect = row.getBoundingClientRect();
+      var cs = getComputedStyle(row);
+      row.style.height = rect.height + "px";
+      row.style.marginBottom = cs.marginBottom;
+      row.style.overflow = "hidden";
+      row.style.willChange = "height, margin, padding";
+      // Reflow erzwingen, damit der Browser den Startwert vor dem Kollaps kennt.
+      row.offsetHeight; // eslint-disable-line no-unused-expressions
+
+      row.style.transition = "height .38s cubic-bezier(.4,0,.2,1), margin-bottom .38s cubic-bezier(.4,0,.2,1), padding-top .38s cubic-bezier(.4,0,.2,1), padding-bottom .38s cubic-bezier(.4,0,.2,1)";
+      requestAnimationFrame(function(){
+        row.style.height = "0px";
+        row.style.marginBottom = "0px";
+        row.style.paddingTop = "0px";
+        row.style.paddingBottom = "0px";
+      });
+
+      var done = false;
+      row.addEventListener("transitionend", function handler(e){
+        if (e.propertyName !== "height" || done) return;
+        done = true;
+        row.removeEventListener("transitionend", handler);
+        row.remove();
+        if (!els.historyContainer.children.length) renderHistory();
+      });
+      // Fallback, falls transitionend aus irgendeinem Grund nicht feuert.
+      setTimeout(function(){ if (!done){ done = true; row.remove(); if (!els.historyContainer.children.length) renderHistory(); } }, 500);
+    }, 220);
+  }
+
+  /* ---- Stats + Chart ---- */
+  function renderStatsError(err){
+    var msg = friendlyErrorMessage(err);
+    els.statsContainer.innerHTML = '<div class="state-panel glass"><div class="icon">' + (msg.indexOf("Verbindung")===0?"📡":"⚠️") + '</div><h3>' + (msg.indexOf("Verbindung")===0?"Keine Verbindung":"Konnte nicht laden") + '</h3><p>' + escapeHtml(msg) + '</p></div>';
+  }
+  function buildDailyBuckets(days){
+    var buckets = []; var now = new Date();
+    for (var i=days-1;i>=0;i--){
+      var d = new Date(now); d.setDate(d.getDate()-i);
+      var key = d.toISOString().slice(0,10);
+      buckets.push({ key:key, label:d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit"}), counts:{} });
+    }
+    var byKey = {}; buckets.forEach(function(b){ byKey[b.key]=b; });
+    state.history.forEach(function(h){
+      if (!h.created_at) return;
+      var key = h.created_at.slice(0,10);
+      var b = byKey[key];
+      if (!b) return;
+      b.counts[h.status] = (b.counts[h.status]||0) + 1;
+    });
+    return buckets;
+  }
+  function renderTrendChart(){
+    var days = 14;
+    var buckets = buildDailyBuckets(days);
+    var order = ["published","approval_aborted","approved_test_not_published","duplicate_skipped","archived"];
+    var maxTotal = 1;
+    buckets.forEach(function(b){
+      var t = 0; order.forEach(function(k){ t += b.counts[k]||0; });
+      if (t>maxTotal) maxTotal = t;
+    });
+    var W = 640, H = 130, padL = 4, padR = 4, barGap = 4;
+    var barW = (W - padL - padR - barGap*(days-1)) / days;
+    var bars = "";
+    buckets.forEach(function(b, i){
+      var x = padL + i*(barW+barGap);
+      var yCursor = H - 22;
+      order.forEach(function(k){
+        var c = b.counts[k]||0;
+        if (!c) return;
+        var h = (c / maxTotal) * (H - 30);
+        yCursor -= h;
+        bars += '<rect x="'+x.toFixed(1)+'" y="'+yCursor.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+STATUS_COLORS[k]+'" opacity="0.92"/>';
+      });
+      if (i % 2 === 0){
+        bars += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-6)+'" font-size="8.5" fill="#5E6A75" text-anchor="middle" font-family="Inter, sans-serif">'+b.label+'</text>';
+      }
+    });
+    var legend = order.filter(function(k){ return buckets.some(function(b){ return b.counts[k]; }); }).map(function(k){
+      return '<span><span class="legend-dot" style="background:'+STATUS_COLORS[k]+'"></span>'+STATUS_LABELS[k]+'</span>';
+    }).join("");
+    return '<div class="chart-panel glass">' +
+      '<div class="chart-title">Aktivität, letzte 14 Tage</div>' +
+      '<div class="chart-sub">Posts pro Tag, nach Ergebnis</div>' +
+      '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="140" preserveAspectRatio="none">' + bars + '</svg>' +
+      '<div class="chart-legend">' + legend + '</div>' +
+      '</div>';
+  }
+  function renderHeatmap(){
+    var WEEKS = 13;
+    var today = new Date(); today.setHours(0,0,0,0);
+    var dow = (today.getDay() + 6) % 7; // Montag=0 ... Sonntag=6
+    var gridEnd = new Date(today); gridEnd.setDate(gridEnd.getDate() + (6 - dow)); // Ende der aktuellen Woche (Sonntag)
+    var gridStart = new Date(gridEnd); gridStart.setDate(gridStart.getDate() - (WEEKS*7 - 1));
+
+    var counts = {};
+    state.history.forEach(function(h){
+      if (!h.created_at) return;
+      var key = h.created_at.slice(0,10);
+      counts[key] = (counts[key]||0) + 1;
+    });
+    var max = 1; Object.keys(counts).forEach(function(k){ if (counts[k]>max) max = counts[k]; });
+
+    var cell = 13, gap = 3;
+    var W = WEEKS*(cell+gap) - gap;
+    var H = 7*(cell+gap) - gap;
+    var rects = "";
+    var d = new Date(gridStart);
+    for (var w=0; w<WEEKS; w++){
+      for (var day=0; day<7; day++){
+        var key = d.toISOString().slice(0,10);
+        var c = counts[key] || 0;
+        var future = d > today;
+        var t = Math.min(c / max, 1);
+        var fill = future ? "rgba(237,234,225,0.02)" : (c===0 ? "rgba(237,234,225,0.05)" : "rgba(232,163,61," + (0.18 + t*0.72).toFixed(2) + ")");
+        var x = w*(cell+gap), y = day*(cell+gap);
+        var deKey = key.slice(8,10) + '.' + key.slice(5,7) + '.' + key.slice(0,4);
+        rects += '<rect x="'+x+'" y="'+y+'" width="'+cell+'" height="'+cell+'" rx="3" fill="'+fill+'"><title>'+deKey+': '+c+' Post(e)</title></rect>';
+        d.setDate(d.getDate()+1);
+      }
+    }
+    return '<div class="heatmap-panel glass">' +
+      '<div class="chart-title">Aktivität, letzte ' + WEEKS + ' Wochen</div>' +
+      '<div class="chart-sub">Jedes Quadrat ein Tag, heller = mehr Posts</div>' +
+      '<div class="heatmap-scroll"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%; height:auto; display:block;">' + rects + '</svg></div>' +
+      '</div>';
+  }
+
+  function renderStats(){
+    var s = state.stats; if (!s) return;
+    var by = s.by_status || {}; var costs = s.costs || {};
+    var html = "";
+    html += state.historyLoaded ? renderTrendChart() : '<div class="skeleton" style="height:180px;"></div>';
+    html += state.historyLoaded ? renderHeatmap() : '';
+
+    html += '<div class="stat-grid">';
+    html += statTile(s.total, "Gesamt", true);
+    html += statTile(s.pending_approval || by.pending_approval || 0, "Warten auf Freigabe");
+    html += statTile(s.published || by.published || 0, "Veröffentlicht");
+    html += statTile(s.duplicate_skipped || by.duplicate_skipped || 0, "Duplikate übersprungen");
+    html += statTile(s.approval_aborted || by.approval_aborted || 0, "Abgelehnt");
+    html += statTile(s.last_7_days || 0, "Letzte 7 Tage");
+    html += '</div>';
+
+    if (s.by_content_pillar && Object.keys(s.by_content_pillar).length){
+      html += '<div class="section-title">Nach Thema</div><div class="stat-tile wide glass">';
+      var entries = Object.keys(s.by_content_pillar).map(function(k){ return [k, s.by_content_pillar[k]]; });
+      var max = Math.max.apply(null, entries.map(function(e){ return e[1]; }).concat([1]));
+      entries.sort(function(a,b){ return b[1]-a[1]; });
+      entries.forEach(function(e){
+        var pct = Math.round((e[1]/max)*100);
+        html += '<div class="pillar-bar-row"><div class="pl"><span>' + escapeHtml(e[0]) + '</span><span>' + e[1] + '</span></div>' +
+          '<div class="pillar-bar-track"><div class="pillar-bar-fill" style="width:'+pct+'%"></div></div></div>';
+      });
+      html += '</div>';
+    }
+
+    if (state.historyLoaded){
+      var reasonCounts = {};
+      state.history.forEach(function(h){
+        if (h.status !== 'approval_aborted') return;
+        var reason = (h.raw_payload && h.raw_payload.rejection_reason && h.raw_payload.rejection_reason.trim()) || 'Ohne Angabe';
+        reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
+      });
+      var reasonEntries = Object.keys(reasonCounts).map(function(k){ return [k, reasonCounts[k]]; });
+      if (reasonEntries.length){
+        html += '<div class="section-title">Ablehnungsgründe</div><div class="stat-tile wide glass">';
+        var reasonMax = Math.max.apply(null, reasonEntries.map(function(e){ return e[1]; }).concat([1]));
+        reasonEntries.sort(function(a,b){ return b[1]-a[1]; });
+        reasonEntries.forEach(function(e){
+          var pct = Math.round((e[1]/reasonMax)*100);
+          html += '<div class="pillar-bar-row"><div class="pl"><span>' + escapeHtml(e[0]) + '</span><span>' + e[1] + '</span></div>' +
+            '<div class="pillar-bar-track"><div class="pillar-bar-fill" style="width:'+pct+'%"></div></div></div>';
+        });
+        html += '</div>';
+      }
+    }
+
+    html += '<div class="section-title">Geschätzte Kosten</div>';
+    html += '<div class="stat-tile wide glass">';
+    html += costRow("Text (exakt)", fmtUsd(costs.text_cost_usd));
+    html += costRow("Bilder (geschätzt, " + (costs.images_generated_estimate||0) + " Bilder)", fmtUsd(costs.image_cost_usd_estimate));
+    html += costRow("Gesamt", fmtUsd(costs.total_cost_usd_estimate));
+    if (costs.note) html += '<div class="cost-note">' + escapeHtml(costs.note) + '</div>';
+    html += '</div>';
+
+    els.statsContainer.innerHTML = html;
+  }
+  function statTile(num, label, accent){
+    return '<div class="stat-tile glass' + (accent?" accent":"") + '"><div class="num">' + (num==null?"–":num) + '</div><div class="label">' + escapeHtml(label) + '</div></div>';
+  }
+  function costRow(label, value){ return '<div class="cost-row"><span>' + escapeHtml(label) + '</span><span class="v">' + value + '</span></div>'; }
+  function fmtUsd(n){ if (n==null || isNaN(n)) return "–"; return "$" + Number(n).toFixed(4); }
+
+  /* ---- Tabs ---- */
+  function setView(view){
+    state.view = view;
+    Object.keys(els.views).forEach(function(k){ els.views[k].classList.toggle("active", k===view); });
+    Object.keys(els.tabs).forEach(function(k){ els.tabs[k].classList.toggle("active", k===view); });
+    els.topbarSub.textContent = view==="pending" ? "Freigaben" : view==="history" ? "Verlauf" : "Statistik";
+    if (view==="stats" && !state.statsLoaded) fetchStats();
+    if (view==="history" && !state.historyLoaded) fetchHistory();
+  }
+  els.tabs.pending.addEventListener("click", function(){ setView("pending"); });
+  els.tabs.history.addEventListener("click", function(){ setView("history"); });
+  els.tabs.stats.addEventListener("click", function(){ setView("stats"); });
+  els.refreshBtn.addEventListener("click", refreshAll);
+  var searchDebounce = null;
+  els.historySearch.addEventListener("input", function(){
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(function(){ state.historySearch = els.historySearch.value; state.historyPage = 0; renderHistory(); }, 120);
+  });
+
+  /* ---- Utils ---- */
+  function escapeHtml(str){ return String(str==null?"":str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+  function attr(str){ return escapeHtml(str); }
+  function relativeTime(iso){
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}) + ", " +
+      d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) + " Uhr";
+  }
+  var toastTimer = null;
+  function showToast(msg){
+    els.toast.textContent = msg; els.toast.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ els.toast.classList.remove("show"); }, 2400);
+  }
+
+  /* ---- Auth ---- */
+  var authOverlay = document.getElementById("auth-overlay");
+  var authTabLogin = document.getElementById("auth-tab-login");
+  var authTabRegister = document.getElementById("auth-tab-register");
+  var authFormLogin = document.getElementById("auth-form-login");
+  var authFormRegister = document.getElementById("auth-form-register");
+  var loginError = document.getElementById("login-error");
+  var registerError = document.getElementById("register-error");
+  var logoutBtn = document.getElementById("logout-btn");
+
+  function wirePasswordToggle(inputId, btnId){
+    var input = document.getElementById(inputId);
+    var btn = document.getElementById(btnId);
+    if (!input || !btn) return;
+    var eyeClosed = btn.querySelector(".eye-closed");
+    var eyeOpen = btn.querySelector(".eye-open");
+    btn.addEventListener("click", function(){
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      eyeClosed.style.display = showing ? "" : "none";
+      eyeOpen.style.display = showing ? "none" : "";
+      btn.setAttribute("aria-label", showing ? "Passwort anzeigen" : "Passwort verbergen");
+    });
+  }
+  wirePasswordToggle("login-password", "login-password-toggle");
+  wirePasswordToggle("register-password", "register-password-toggle");
+  wirePasswordToggle("adduser-password", "adduser-password-toggle");
+  wirePasswordToggle("changepw-current", "changepw-current-toggle");
+  wirePasswordToggle("changepw-new", "changepw-new-toggle");
+  wirePasswordToggle("changepw-new-confirm", "changepw-new-confirm-toggle");
+  wirePasswordToggle("forgot-new-password", "forgot-new-password-toggle");
+  wirePasswordToggle("forgot-new-password-confirm", "forgot-new-password-confirm-toggle");
+
+  // ---- Nutzer hinzufuegen ----
+  var adduserBackdrop = document.getElementById("adduser-backdrop");
+  var adduserBtn = document.getElementById("adduser-btn");
+  var adduserCancel = document.getElementById("adduser-cancel");
+  var adduserSubmit = document.getElementById("adduser-submit");
+  var adduserError = document.getElementById("adduser-error");
+
+  function currentUsername(){
+    if (!SESSION_TOKEN) return null;
+    var dotIndex = SESSION_TOKEN.lastIndexOf(".");
+    if (dotIndex === -1) return null;
+    var b64 = SESSION_TOKEN.slice(0, dotIndex).replace(/-/g,"+").replace(/_/g,"/");
+    while (b64.length % 4) b64 += "=";
+    try {
+      var decoded = atob(b64);
+      var sepIndex = decoded.lastIndexOf("|");
+      return sepIndex === -1 ? null : decoded.slice(0, sepIndex);
+    } catch(e){ return null; }
+  }
+
+  function loadUserList(){
+    var container = document.getElementById("userlist-container");
+    container.innerHTML = '<p class="userlist-loading">Lade Nutzerliste…</p>';
+    fetch(API_BASE + "/baltikum-pwa-list-users", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ session_token: SESSION_TOKEN }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        if (!resp || resp.error || !resp.users){
+          container.innerHTML = '<p class="userlist-loading">Konnte Nutzerliste nicht laden.</p>';
+          return;
+        }
+        var me = currentUsername();
+        container.innerHTML = resp.users.map(function(u){
+          var isMe = u.username === me;
+          var created = new Date(u.created_at);
+          var createdStr = created.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
+          return '<div class="userlist-row"><div class="userlist-info"><span class="userlist-name">' + escapeHtml(u.username) + '</span>' +
+            (isMe ? '<span class="userlist-you-tag">DU</span>' : '') +
+            '<span class="userlist-meta">' + escapeHtml(u.email || "keine E-Mail hinterlegt") + ' \u00b7 seit ' + createdStr + '</span></div>' +
+            (isMe ? '' : '<button class="userlist-delete" data-id="' + attr(u.id) + '" data-username="' + attr(u.username) + '" aria-label="Entfernen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>') +
+            '</div>';
+        }).join("");
+        container.querySelectorAll(".userlist-delete").forEach(function(btn){
+          btn.addEventListener("click", function(){
+            var id = btn.getAttribute("data-id");
+            var uname = btn.getAttribute("data-username");
+            if (!confirm('Nutzer "' + uname + '" wirklich entfernen?')) return;
+            btn.setAttribute("disabled","disabled");
+            fetch(API_BASE + "/baltikum-pwa-remove-user", { method:"POST", headers:{"Content-Type":"application/json"},
+              body: JSON.stringify({ session_token: SESSION_TOKEN, user_id: id }) })
+              .then(function(r){ return r.json(); })
+              .then(function(resp2){
+                if (!resp2 || resp2.error){
+                  showToast((resp2 && resp2.error) || "Fehler beim Entfernen");
+                  btn.removeAttribute("disabled");
+                  return;
+                }
+                showToast(resp2.message || "Nutzer entfernt");
+                loadUserList();
+              }).catch(function(){
+                showToast("Verbindung fehlgeschlagen.");
+                btn.removeAttribute("disabled");
+              });
+          });
+        });
+      }).catch(function(){
+        container.innerHTML = '<p class="userlist-loading">Verbindung fehlgeschlagen.</p>';
+      });
+  }
+
+  var changepwError = document.getElementById("changepw-error");
+  var changepwSuccess = document.getElementById("changepw-success");
+
+  document.getElementById("changepw-submit").addEventListener("click", function(){
+    var btn = this;
+    var current = document.getElementById("changepw-current").value;
+    var pw1 = document.getElementById("changepw-new").value;
+    var pw2 = document.getElementById("changepw-new-confirm").value;
+    changepwError.classList.remove("show");
+    changepwSuccess.classList.remove("show");
+    if (!current || !pw1 || !pw2){
+      changepwError.textContent = "Bitte alle Felder ausfüllen.";
+      changepwError.classList.add("show");
+      return;
+    }
+    if (pw1.length < 8){
+      changepwError.textContent = "Neues Passwort muss mindestens 8 Zeichen haben.";
+      changepwError.classList.add("show");
+      return;
+    }
+    if (pw1 !== pw2){
+      changepwError.textContent = "Die beiden neuen Passwörter stimmen nicht überein.";
+      changepwError.classList.add("show");
+      return;
+    }
+    btn.setAttribute("disabled","disabled");
+    fetch(API_BASE + "/baltikum-pwa-change-password", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ session_token: SESSION_TOKEN, current_password: current, new_password: pw1 }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        btn.removeAttribute("disabled");
+        if (!resp || resp.error){
+          changepwError.textContent = (resp && resp.error) || "Fehler beim Ändern des Passworts.";
+          changepwError.classList.add("show");
+          return;
+        }
+        document.getElementById("changepw-current").value = "";
+        document.getElementById("changepw-new").value = "";
+        document.getElementById("changepw-new-confirm").value = "";
+        changepwSuccess.textContent = resp.message || "Passwort erfolgreich geändert.";
+        changepwSuccess.classList.add("show");
+      }).catch(function(){
+        btn.removeAttribute("disabled");
+        changepwError.textContent = "Verbindung fehlgeschlagen. Bitte erneut versuchen.";
+        changepwError.classList.add("show");
+      });
+  });
+
+  adduserBtn.addEventListener("click", function(){
+    document.getElementById("adduser-username").value = "";
+    document.getElementById("adduser-password").value = "";
+    adduserError.classList.remove("show");
+    changepwError.classList.remove("show");
+    changepwSuccess.classList.remove("show");
+    document.getElementById("changepw-current").value = "";
+    document.getElementById("changepw-new").value = "";
+    document.getElementById("changepw-new-confirm").value = "";
+    loadUserList();
+    adduserBackdrop.classList.add("open");
+  });
+  adduserCancel.addEventListener("click", function(){ adduserBackdrop.classList.remove("open"); });
+  adduserBackdrop.addEventListener("click", function(e){ if (e.target===adduserBackdrop) adduserBackdrop.classList.remove("open"); });
+
+  adduserSubmit.addEventListener("click", function(){
+    var btn = this;
+    var newUsername = document.getElementById("adduser-username").value.trim();
+    var newPassword = document.getElementById("adduser-password").value;
+    adduserError.classList.remove("show");
+    if (!newUsername || !newPassword){
+      adduserError.textContent = "Bitte Benutzername und Passwort eingeben.";
+      adduserError.classList.add("show");
+      return;
+    }
+    if (newPassword.length < 8){
+      adduserError.textContent = "Passwort muss mindestens 8 Zeichen haben.";
+      adduserError.classList.add("show");
+      return;
+    }
+    btn.setAttribute("disabled","disabled");
+    postJSON("/baltikum-pwa-add-user", { session_token: SESSION_TOKEN, new_username: newUsername, new_password: newPassword }).then(function(resp){
+      btn.removeAttribute("disabled");
+      if (!resp || resp.error){
+        adduserError.textContent = (resp && resp.error) || "Fehler beim Anlegen.";
+        adduserError.classList.add("show");
+        return;
+      }
+      adduserBackdrop.classList.remove("open");
+      showToast("Nutzer \"" + newUsername + "\" angelegt");
+    }).catch(function(){
+      btn.removeAttribute("disabled");
+      adduserError.textContent = "Verbindung fehlgeschlagen.";
+      adduserError.classList.add("show");
+    });
+  });
+
+
+  function showAuthOverlay(){ authOverlay.classList.remove("hidden"); }
+  function hideAuthOverlay(){ authOverlay.classList.add("hidden"); }
+  function showAuthError(el, msg){ el.textContent = msg; el.classList.add("show"); }
+  function clearAuthErrors(){ loginError.classList.remove("show"); registerError.classList.remove("show"); }
+  function handleSessionExpired(){
+    clearSession();
+    showAuthOverlay();
+    showToast("Sitzung abgelaufen \u2013 bitte erneut anmelden.");
+  }
+
+  authTabLogin.addEventListener("click", function(){ showAuthForm(authFormLogin); });
+  authTabRegister.addEventListener("click", function(){ showAuthForm(authFormRegister); });
+
+  function startApp(){
+    hideAuthOverlay();
+    renderPendingLoading();
+    refreshAll();
+  }
+
+  document.getElementById("login-submit").addEventListener("click", function(){
+    var btn = this;
+    var username = document.getElementById("login-username").value.trim();
+    var password = document.getElementById("login-password").value;
+    var remember = document.getElementById("login-remember").checked;
+    clearAuthErrors();
+    if (!username || !password){ showAuthError(loginError, "Bitte Benutzername und Passwort eingeben."); return; }
+    btn.setAttribute("disabled","disabled");
+    fetch(API_BASE + "/baltikum-pwa-login", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ username: username, password: password, remember: remember }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        btn.removeAttribute("disabled");
+        if (!resp || resp.error || !resp.session_token){
+          showAuthError(loginError, (resp && resp.error) || "Anmeldung fehlgeschlagen.");
+          return;
+        }
+        storeSession(resp.session_token, remember);
+        startApp();
+      }).catch(function(){
+        btn.removeAttribute("disabled");
+        showAuthError(loginError, "Verbindung fehlgeschlagen. Bitte erneut versuchen.");
+      });
+  });
+
+  document.getElementById("register-submit").addEventListener("click", function(){
+    var btn = this;
+    var username = document.getElementById("register-username").value.trim();
+    var password = document.getElementById("register-password").value;
+    var remember = document.getElementById("register-remember").checked;
+    clearAuthErrors();
+    if (!username || !password){ showAuthError(registerError, "Bitte Benutzername und Passwort eingeben."); return; }
+    if (password.length < 8){ showAuthError(registerError, "Passwort muss mindestens 8 Zeichen haben."); return; }
+    btn.setAttribute("disabled","disabled");
+    fetch(API_BASE + "/baltikum-pwa-register", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ username: username, password: password, remember: remember }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        btn.removeAttribute("disabled");
+        if (!resp || resp.error || !resp.session_token){
+          showAuthError(registerError, (resp && resp.error) || "Registrierung fehlgeschlagen.");
+          return;
+        }
+        storeSession(resp.session_token, remember);
+        startApp();
+      }).catch(function(){
+        btn.removeAttribute("disabled");
+        showAuthError(registerError, "Verbindung fehlgeschlagen. Bitte erneut versuchen.");
+      });
+  });
+
+  var authFormForgotEmail = document.getElementById("auth-form-forgot-email");
+  var authFormForgotReset = document.getElementById("auth-form-forgot-reset");
+  var forgotEmailError = document.getElementById("forgot-email-error");
+  var forgotEmailSuccess = document.getElementById("forgot-email-success");
+  var forgotResetError = document.getElementById("forgot-reset-error");
+
+  function showAuthForm(formEl){
+    [authFormLogin, authFormRegister, authFormForgotEmail, authFormForgotReset].forEach(function(f){
+      f.classList.toggle("active", f === formEl);
+    });
+    authTabLogin.classList.toggle("active", formEl === authFormLogin);
+    authTabRegister.classList.toggle("active", formEl === authFormRegister);
+    clearAuthErrors();
+    forgotEmailError.classList.remove("show");
+    forgotEmailSuccess.classList.remove("show");
+    forgotResetError.classList.remove("show");
+  }
+
+  document.getElementById("show-forgot-link").addEventListener("click", function(){
+    document.getElementById("forgot-email").value = "";
+    showAuthForm(authFormForgotEmail);
+  });
+  document.getElementById("forgot-back-to-login-1").addEventListener("click", function(){ showAuthForm(authFormLogin); });
+  document.getElementById("forgot-back-to-login-2").addEventListener("click", function(){ showAuthForm(authFormLogin); });
+
+  document.getElementById("forgot-email-submit").addEventListener("click", function(){
+    var btn = this;
+    var email = document.getElementById("forgot-email").value.trim();
+    forgotEmailError.classList.remove("show");
+    forgotEmailSuccess.classList.remove("show");
+    if (!email){ forgotEmailError.textContent = "Bitte E-Mail-Adresse eingeben."; forgotEmailError.classList.add("show"); return; }
+    btn.setAttribute("disabled","disabled");
+    fetch(API_BASE + "/baltikum-pwa-forgot-password", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email: email }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        btn.removeAttribute("disabled");
+        forgotEmailSuccess.textContent = (resp && resp.message) || "Falls diese E-Mail-Adresse registriert ist, wurde ein Code verschickt.";
+        forgotEmailSuccess.classList.add("show");
+        document.getElementById("forgot-code").value = "";
+        document.getElementById("forgot-new-password").value = "";
+        document.getElementById("forgot-new-password-confirm").value = "";
+        setTimeout(function(){ showAuthForm(authFormForgotReset); }, 900);
+      }).catch(function(){
+        btn.removeAttribute("disabled");
+        forgotEmailError.textContent = "Verbindung fehlgeschlagen. Bitte erneut versuchen.";
+        forgotEmailError.classList.add("show");
+      });
+  });
+
+  document.getElementById("forgot-reset-submit").addEventListener("click", function(){
+    var btn = this;
+    var email = document.getElementById("forgot-email").value.trim();
+    var code = document.getElementById("forgot-code").value.trim();
+    var pw1 = document.getElementById("forgot-new-password").value;
+    var pw2 = document.getElementById("forgot-new-password-confirm").value;
+    forgotResetError.classList.remove("show");
+    if (!code || !pw1 || !pw2){ forgotResetError.textContent = "Bitte Code und Passwort (2x) eingeben."; forgotResetError.classList.add("show"); return; }
+    if (pw1.length < 8){ forgotResetError.textContent = "Passwort muss mindestens 8 Zeichen haben."; forgotResetError.classList.add("show"); return; }
+    if (pw1 !== pw2){ forgotResetError.textContent = "Die beiden Passwörter stimmen nicht überein."; forgotResetError.classList.add("show"); return; }
+    btn.setAttribute("disabled","disabled");
+    fetch(API_BASE + "/baltikum-pwa-reset-password", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email: email, code: code, new_password: pw1 }) })
+      .then(function(r){ return r.json(); })
+      .then(function(resp){
+        btn.removeAttribute("disabled");
+        if (!resp || resp.error){
+          forgotResetError.textContent = (resp && resp.error) || "Fehler beim Ändern des Passworts.";
+          forgotResetError.classList.add("show");
+          return;
+        }
+        showAuthForm(authFormLogin);
+        document.getElementById("login-username").focus();
+        showToast("Passwort geändert – bitte anmelden.");
+      }).catch(function(){
+        btn.removeAttribute("disabled");
+        forgotResetError.textContent = "Verbindung fehlgeschlagen. Bitte erneut versuchen.";
+        forgotResetError.classList.add("show");
+      });
+  });
+
+  logoutBtn.addEventListener("click", function(){
+    clearSession();
+    location.reload();
+  });
+
+  // ---- Pull-to-Refresh ----
+  (function(){
+    var pullIndicator = document.getElementById("pull-indicator");
+    var startY = 0, pulling = false, currentPull = 0;
+    var THRESHOLD = 70, MAX_PULL = 100;
+
+    document.addEventListener("touchstart", function(e){
+      if (window.scrollY <= 0){
+        startY = e.touches[0].clientY;
+        pulling = true;
+        pullIndicator.classList.add("pulling");
+      }
+    }, { passive: true });
+
+    document.addEventListener("touchmove", function(e){
+      if (!pulling) return;
+      var deltaY = e.touches[0].clientY - startY;
+      if (deltaY > 0 && window.scrollY <= 0){
+        currentPull = Math.min(deltaY, MAX_PULL);
+        var progress = Math.min(1, currentPull / THRESHOLD);
+        pullIndicator.style.opacity = progress;
+        pullIndicator.style.transform = "translateX(-50%) translateY(" + (currentPull - 30) + "px) rotate(" + (progress*180) + "deg)";
+      } else {
+        pulling = false;
+      }
+    }, { passive: true });
+
+    document.addEventListener("touchend", function(){
+      if (!pulling) return;
+      pulling = false;
+      pullIndicator.classList.remove("pulling");
+      if (currentPull >= THRESHOLD){
+        pullIndicator.classList.add("refreshing");
+        pullIndicator.style.opacity = "1";
+        pullIndicator.style.transform = "translateX(-50%) translateY(16px)";
+        refreshAll();
+        setTimeout(function(){
+          pullIndicator.classList.remove("refreshing");
+          pullIndicator.style.opacity = "0";
+          pullIndicator.style.transform = "translateX(-50%) translateY(-100%)";
+        }, 900);
+      } else {
+        pullIndicator.style.opacity = "0";
+        pullIndicator.style.transform = "translateX(-50%) translateY(-100%)";
+      }
+      currentPull = 0;
+    }, { passive: true });
+  })();
+
+  /* ---- Init ---- */
+  document.getElementById("splash-login-btn").addEventListener("click", function(){
+    dismissSplash();
+    showAuthOverlay();
+  });
+
+  SESSION_TOKEN = loadStoredSession();
+  if (SESSION_TOKEN){
+    dismissSplash();
+    startApp();
+  }
+  /* Sonst: Splash bleibt stehen, bis auf "Einloggen" getippt wird. */
+
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>

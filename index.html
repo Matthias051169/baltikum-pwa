@@ -214,7 +214,7 @@
   .hist-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
   .hist-thumb.noimg::after{content:"—"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     color:var(--paper-faint); font-size:14px;}
-  .hist-body{flex:1; min-width:0;}
+  .hist-body{flex:1; min-width:0; overflow:hidden;}
   .hist-title{font-family:var(--serif); font-size:14.5px; font-weight:560; margin:0 0 4px; line-height:1.3;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .hist-meta{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--paper-faint);}
@@ -1044,7 +1044,7 @@
     var published = state.history.filter(function(h){ return h.status === "published" && h.headline; });
     if (!published.length) return;
     var pick = published[Math.floor(Math.random()*published.length)];
-    el.innerHTML = '<span class="qmark">„</span>' + escapeHtml(pick.headline) + '<span class="qmark">"</span>';
+    el.innerHTML = '<span class="qmark">„</span>' + escapeHtml(pick.headline) + '<span class="qmark">“</span>';
     requestAnimationFrame(function(){ el.classList.add("show"); });
   }
   function fetchStats(){
@@ -1219,7 +1219,7 @@
         card.style.opacity = "0";
         openRejectReason(item, card);
       } else {
-        card.style.transform = ""; 
+        card.style.transform = "";
       }
     }
     card.addEventListener("pointerup", endDrag);
@@ -1480,7 +1480,7 @@
       });
     }
     if (!items.length){
-      var msg = q ? "Kein Treffer für „" + escapeHtml(state.historySearch.trim()) + """ : "Entschiedene Posts erscheinen hier.";
+      var msg = q ? "Kein Treffer für „" + escapeHtml(state.historySearch.trim()) + "“." : "Entschiedene Posts erscheinen hier.";
       els.historyContainer.innerHTML = '<div class="state-panel glass"><div class="icon">' + (q?"🔍":"📜") + '</div><h3>' + (q?"Nichts gefunden":"Noch kein Verlauf") + '</h3><p>' + msg + '</p></div>';
       return;
     }
@@ -1532,7 +1532,7 @@
       '<div class="hist-body"><div class="hist-title">' + escapeHtml(h.headline || text.slice(0,60) || "Ohne Titel") + '</div>' +
       '<div class="hist-meta"><span>' + escapeHtml(h.content_pillar||"—") + '</span><span>·</span><span>' + relativeTime(h.approval_decided_at || h.created_at) + '</span></div></div>' +
       '<span class="hist-status ' + h.status + '">' + escapeHtml(STATUS_LABELS[h.status] || h.status) + '</span>' +
-      (h.status === 'approval_aborted' ? '<button class="hist-restore" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zur\u00fcck in die Freigaben">' +
+      (h.status === 'approval_aborted' ? '<button class="hist-restore" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zurück in die Freigaben">' +
       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '') +
       '<button class="hist-delete" data-id="' + attr(h.id) + '" aria-label="Archivieren" title="Aus dem Verlauf ausblenden (archivieren)">' +
       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>';
@@ -1543,7 +1543,7 @@
     var reason = (h.raw_payload && h.raw_payload.rejection_reason) || null;
     var location = (h.raw_payload && (h.raw_payload.location || h.raw_payload.manual_location || (h.raw_payload.prepared_node && h.raw_payload.prepared_node.manual_location))) || null;
     var reasonHtml = reason ? '<div class="reject-reason-tag">Grund: ' + escapeHtml(reason) + '</div>' : "";
-    return (h.status === 'approval_aborted' ? '<button class="hist-restore hist-restore-expanded" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zur\u00fcck in die Freigaben">' +
+    return (h.status === 'approval_aborted' ? '<button class="hist-restore hist-restore-expanded" data-id="' + attr(h.id) + '" aria-label="Wiederherstellen" title="Zurück in die Freigaben">' +
       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>' : '') +
       '<button class="hist-delete hist-delete-expanded" data-id="' + attr(h.id) + '" aria-label="Archivieren" title="Aus dem Verlauf ausblenden (archivieren)">' +
       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>' +
@@ -1661,7 +1661,7 @@
     if (btn) btn.setAttribute("disabled", "disabled");
     postJSON("/baltikum-pwa-restore", { id: id, session_token: SESSION_TOKEN }).then(function(resp){
       if (resp && resp.error) throw new Error(resp.error);
-      showToast("Wiederhergestellt \u2013 wieder in den Freigaben");
+      showToast("Wiederhergestellt – wieder in den Freigaben");
       state.history = state.history.filter(function(h){ return h.id !== id; });
       renderHistoryFilters();
       if (row) collapseAndRemove(row); else renderHistory();
@@ -1981,7 +1981,7 @@
           var createdStr = created.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"});
           return '<div class="userlist-row"><div class="userlist-info"><span class="userlist-name">' + escapeHtml(u.username) + '</span>' +
             (isMe ? '<span class="userlist-you-tag">DU</span>' : '') +
-            '<span class="userlist-meta">' + escapeHtml(u.email || "keine E-Mail hinterlegt") + ' \u00b7 seit ' + createdStr + '</span></div>' +
+            '<span class="userlist-meta">' + escapeHtml(u.email || "keine E-Mail hinterlegt") + ' · seit ' + createdStr + '</span></div>' +
             (isMe ? '' : '<button class="userlist-delete" data-id="' + attr(u.id) + '" data-username="' + attr(u.username) + '" aria-label="Entfernen"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>') +
             '</div>';
         }).join("");
@@ -2116,7 +2116,7 @@
   function handleSessionExpired(){
     clearSession();
     showAuthOverlay();
-    showToast("Sitzung abgelaufen \u2013 bitte erneut anmelden.");
+    showToast("Sitzung abgelaufen – bitte erneut anmelden.");
   }
 
   authTabLogin.addEventListener("click", function(){ showAuthForm(authFormLogin); });
